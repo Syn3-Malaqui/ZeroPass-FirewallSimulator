@@ -1,7 +1,7 @@
-from http.client import HTTPConnection
-from urllib.parse import urlparse
 import os
 import json
+import requests
+from urllib.parse import urljoin
 
 def handler(event, context):
     """
@@ -16,7 +16,7 @@ def handler(event, context):
     # Get query parameters
     query_string = event.get('queryStringParameters', {})
     
-    # Get headers (excluding host which will be set by the http client)
+    # Get headers (excluding host which will be set by requests)
     headers = event.get('headers', {})
     if 'host' in headers:
         del headers['host']
@@ -26,43 +26,32 @@ def handler(event, context):
     
     # Parse the backend URL from environment variable
     backend_url = os.environ.get('BACKEND_URL', 'http://localhost:8000')
-    parsed_url = urlparse(backend_url)
     
-    # Create a connection to the backend
-    conn = HTTPConnection(parsed_url.netloc)
+    # Build the full URL
+    full_url = urljoin(backend_url, path)
     
-    # Build the path with query parameters
-    if query_string:
-        query_parts = []
-        for key, value in query_string.items():
-            query_parts.append(f"{key}={value}")
-        full_path = f"{parsed_url.path}/{path}?{'&'.join(query_parts)}"
-    else:
-        full_path = f"{parsed_url.path}/{path}"
-    
-    # Send the request to the backend
-    conn.request(
-        method=method,
-        url=full_path,
-        body=body,
-        headers=headers
-    )
-    
-    # Get the response from the backend
-    response = conn.getresponse()
-    
-    # Read the response data
-    data = response.read().decode()
-    
-    # Get the response headers
-    response_headers = {k: v for k, v in response.getheaders()}
-    
-    # Close the connection
-    conn.close()
-    
-    # Return the response
-    return {
-        'statusCode': response.status,
-        'headers': response_headers,
-        'body': data
-    } 
+    try:
+        # Send the request to the backend
+        response = requests.request(
+            method=method,
+            url=full_url,
+            params=query_string,
+            headers=headers,
+            data=body
+        )
+        
+        # Return the response
+        return {
+            'statusCode': response.status_code,
+            'headers': dict(response.headers),
+            'body': response.text
+        }
+    except Exception as e:
+        # Return error response
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({
+                'error': f'Error proxying request: {str(e)}'
+            })
+        } 
