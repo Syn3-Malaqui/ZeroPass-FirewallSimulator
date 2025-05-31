@@ -3,8 +3,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "functions": {
-    "app/api/backend/[...path].js": {
-      "runtime": "python3.9"
+    "api/backend/[...path].py": {
+      "runtime": "@vercel/python@3.1.0"
     }
   },
   "rewrites": [
@@ -14,7 +14,8 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_BACKEND_URL": "https://your-backend-url.vercel.app"
+    "NEXT_PUBLIC_BACKEND_URL": "BACKEND_URL_PLACEHOLDER",
+    "BACKEND_URL": "https://your-actual-backend-url.com"
   },
   "headers": [
     {
