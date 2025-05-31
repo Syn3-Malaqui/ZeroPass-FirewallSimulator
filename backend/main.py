@@ -9,6 +9,11 @@ import time
 from datetime import datetime, timedelta
 import re
 import logging
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,10 +25,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Get allowed origins from environment variable or use default
+allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=allowed_origins,  # Use environment variable for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

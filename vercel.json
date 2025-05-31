@@ -1,22 +1,14 @@
 {
+  "version": 2,
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "functions": {
-    "api/backend/[...path].py": {
-      "runtime": "vercel-python@3.1.0"
-    }
-  },
   "rewrites": [
     {
-      "source": "/api/backend/(.*)",
-      "destination": "/api/backend/$1"
+      "source": "/api/backend/:path*",
+      "destination": "https://$NEXT_PUBLIC_BACKEND_URL/:path*"
     }
   ],
-  "env": {
-    "NEXT_PUBLIC_BACKEND_URL": "BACKEND_URL_PLACEHOLDER",
-    "BACKEND_URL": "https://your-actual-backend-url.com"
-  },
   "headers": [
     {
       "source": "/api/(.*)",
@@ -35,5 +27,8 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NEXT_PUBLIC_BACKEND_URL": "YOUR_DEPLOYED_BACKEND_URL"
+  }
 } 
