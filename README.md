@@ -84,9 +84,20 @@ The simulator supports six comprehensive rule categories:
 
 ## Building the Project
 
+### Project Structure
+```
+ZeroPass-FirewallSimulator/
+├── frontend/           # Next.js frontend application
+├── backend/            # FastAPI backend application
+├── docs/               # Documentation files
+├── Dockerfile          # Multi-stage Dockerfile for building both services
+└── docker-compose.yml  # Docker Compose configuration
+```
+
 ### Development Build
 ```bash
 # Install frontend dependencies
+cd frontend
 npm install
 
 # Install backend dependencies
@@ -99,6 +110,7 @@ cp env.example .env.local
 ### Production Build
 ```bash
 # Build optimized frontend
+cd frontend
 npm run build
 
 # Create Docker images
@@ -118,6 +130,7 @@ vercel --prod
 npm install -g vercel
 
 # Deploy frontend
+cd frontend
 vercel --prod
 
 # Set environment variables in Vercel dashboard
@@ -179,12 +192,13 @@ python main.py
 
 **Start Frontend Development Server:**
 ```bash
+cd frontend
 npm run dev
 # Frontend available at http://localhost:3000
 ```
 
 ### Docker Compose
-   ```bash
+```bash
 docker-compose up
 # Frontend: http://localhost:3000
 # Backend: http://localhost:8000
@@ -194,6 +208,7 @@ docker-compose up
 ### Production Deployment
 ```bash
 # Frontend on Vercel
+cd frontend
 vercel --prod
 
 # Backend on Railway/Render/Heroku

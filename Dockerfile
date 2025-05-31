@@ -6,11 +6,11 @@ FROM node:18-alpine AS frontend-builder
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci --only=production
 
-# Copy source code
-COPY . .
+# Copy frontend source code
+COPY frontend/ ./
 
 # Build the application
 RUN npm run build
@@ -41,7 +41,6 @@ WORKDIR /app
 # Copy built application from builder stage
 COPY --from=frontend-builder /app/.next/standalone ./
 COPY --from=frontend-builder /app/.next/static ./.next/static
-COPY --from=frontend-builder /app/public ./public
 
 # Expose port
 EXPOSE 3000

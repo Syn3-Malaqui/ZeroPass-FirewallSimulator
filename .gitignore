@@ -1,13 +1,13 @@
 # Dependencies
-node_modules/
+frontend/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
 # Next.js
-.next/
-out/
-build/
+frontend/.next/
+frontend/out/
+frontend/build/
 
 # Environment variables
 .env
@@ -28,22 +28,21 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.venv/
+backend/env/
+backend/venv/
+backend/ENV/
+backend/env.bak/
+backend/venv.bak/
+backend/.venv/
 
 # Distribution / packaging
 .Python
 build/
 develop-eggs/
-dist/
+frontend/dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -84,11 +83,11 @@ celerybeat-schedule
 # Environments
 .env
 .venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+backend/env/
+backend/venv/
+backend/ENV/
+backend/env.bak/
+backend/venv.bak/
 
 # Spyder project settings
 .spyderproject
@@ -150,7 +149,7 @@ bower_components
 build/Release
 
 # Dependency directories
-node_modules/
+frontend/node_modules/
 jspm_packages/
 
 # Optional npm cache directory
