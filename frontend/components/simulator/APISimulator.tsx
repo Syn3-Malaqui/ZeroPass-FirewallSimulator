@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Play, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
 import { useAppStore, useRuleSets } from '@/lib/store'
 import { api, handleAPIError, generateJWTToken, validateIP } from '@/lib/api'
@@ -13,7 +13,8 @@ export function APISimulator() {
     setSimulationResult, 
     addToHistory, 
     setLoading, 
-    setError 
+    setError,
+    setRuleSets 
   } = useAppStore()
   
   const [selectedRuleSet, setSelectedRuleSet] = useState('')
@@ -23,6 +24,46 @@ export function APISimulator() {
   const [headers, setHeaders] = useState('{"Authorization": "Bearer <token>", "User-Agent": "curl/7.68.0"}')
   const [jwtToken, setJwtToken] = useState('')
   const [oauthScopes, setOauthScopes] = useState('read,write')
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Periodically refresh rule sets to prevent stale data
+  useEffect(() => {
+    // Refresh immediately on component mount
+    refreshRuleSets(false)
+    
+    // Then refresh every 60 seconds
+    const intervalId = setInterval(() => {
+      refreshRuleSets(false)
+    }, 60000)
+    
+    return () => clearInterval(intervalId)
+  }, [])
+
+  const refreshRuleSets = async (showFeedback = true) => {
+    if (showFeedback) {
+      setIsRefreshing(true)
+    }
+    
+    try {
+      // Clear cache to ensure fresh data
+      api.clearCache()
+      const freshRuleSets = await api.getRuleSets()
+      setRuleSets(freshRuleSets)
+      
+      if (showFeedback) {
+        setError('✅ Rule sets refreshed successfully')
+        setTimeout(() => setError(undefined), 3000)
+      }
+    } catch (error) {
+      if (showFeedback) {
+        setError(`Failed to refresh rule sets: ${handleAPIError(error)}`)
+      }
+    } finally {
+      if (showFeedback) {
+        setIsRefreshing(false)
+      }
+    }
+  }
 
   const handleSimulate = async () => {
     if (!selectedRuleSet) {
@@ -51,7 +92,43 @@ export function APISimulator() {
         oauth_scopes: oauthScopes.split(',').map(s => s.trim()).filter(Boolean),
       }
 
+      console.log(`Starting simulation with rule set: ${selectedRuleSet}`)
+      
+      // First verify that the rule set exists
+      let validRuleSetId = selectedRuleSet
+      try {
+        const availableRuleSets = await api.getRuleSets()
+        if (!availableRuleSets.some(rs => rs.id === selectedRuleSet)) {
+          if (availableRuleSets.length > 0) {
+            // Auto-select the first rule set if the selected one doesn't exist
+            validRuleSetId = availableRuleSets[0].id
+            console.log(`⚠️ Selected rule set doesn't exist, using ${validRuleSetId} instead`)
+            setSelectedRuleSet(validRuleSetId)
+            request.rule_set_id = validRuleSetId
+            
+            // Show a warning but continue
+            setError(`⚠️ Selected rule set not found. Automatically switched to ${availableRuleSets[0].name}.`)
+          } else {
+            throw new Error('No rule sets available. Please create a rule set first.')
+          }
+        }
+      } catch (verifyError) {
+        console.warn('Failed to verify rule set existence:', verifyError)
+        // Continue anyway, as the API client has its own fallback
+      }
+      
+      // Clear any temporary warnings after 3 seconds
+      setTimeout(() => {
+        setError(undefined)
+      }, 3000)
+
       const result = await api.simulate(request)
+      
+      // Check if this was a fallback evaluation
+      if (result.evaluation_details.some(detail => detail.includes('fallback'))) {
+        setError(`⚠️ Using fallback evaluation. The backend '/simulate' endpoint might be unavailable.`)
+      }
+      
       setSimulationResult(result)
       addToHistory(result)
     } catch (error) {
@@ -92,7 +169,17 @@ export function APISimulator() {
           <div className="space-y-5">
             {/* Rule Set Selection */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Rule Set</label>
+              <div className="flex justify-between items-center">
+                <label className="block text-sm font-medium text-gray-700">Rule Set</label>
+                <button
+                  onClick={() => refreshRuleSets(true)}
+                  disabled={isRefreshing}
+                  className="text-sm text-blue-600 flex items-center space-x-1 hover:text-blue-800 transition-colors"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span className="text-xs">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+              </div>
               <select 
                 value={selectedRuleSet} 
                 onChange={(e) => setSelectedRuleSet(e.target.value)}
@@ -103,6 +190,11 @@ export function APISimulator() {
                   <option key={rs.id} value={rs.id}>{rs.name}</option>
                 ))}
               </select>
+              {ruleSets.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  No rule sets found. Create rule sets in the Rule Builder tab first.
+                </p>
+              )}
             </div>
 
             {/* Client IP */}

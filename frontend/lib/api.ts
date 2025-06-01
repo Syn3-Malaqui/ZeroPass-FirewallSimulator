@@ -426,6 +426,39 @@ export const api = {
     const userRequest = addUserIdToData(request)
     console.log('🔒 Simulating request for user:', getCurrentUserId())
     
+    // Verify rule set exists first
+    try {
+      // First clear cache to ensure fresh data
+      this.clearCache()
+      
+      console.log(`Verifying rule set ${request.rule_set_id} exists before simulation...`)
+      const ruleSets = await this.getRuleSets()
+      
+      // Check if the requested rule set exists
+      const ruleSetExists = ruleSets.some(rs => rs.id === request.rule_set_id)
+      
+      if (!ruleSetExists && ruleSets.length > 0) {
+        // If requested rule set doesn't exist but others do, auto-select the first one
+        const firstRuleSet = ruleSets[0]
+        console.log(`⚠️ Requested rule set ${request.rule_set_id} not found. Auto-selecting ${firstRuleSet.id} instead.`)
+        userRequest.rule_set_id = firstRuleSet.id
+      } else if (!ruleSetExists && ruleSets.length === 0) {
+        // If no rule sets exist at all, try to create one
+        console.log('⚠️ No rule sets found, creating one automatically...')
+        try {
+          const newRuleSetId = await this.ensureRuleSetExists()
+          console.log(`✅ Created new rule set: ${newRuleSetId}`)
+          userRequest.rule_set_id = newRuleSetId
+        } catch (createError) {
+          console.error('Failed to create rule set:', createError)
+          throw new Error('No valid rule sets available. Please create a rule set first.')
+        }
+      }
+    } catch (verifyError) {
+      console.error('Failed to verify rule set:', verifyError)
+      // Continue with simulation attempt despite verification failure
+    }
+    
     try {
       // First try using the standard axios client approach
       try {
@@ -467,12 +500,21 @@ export const api = {
           try {
             console.log('🔄 Attempting direct rule evaluation as fallback...')
             
-            // Create a simplified simulation result based on rule set properties
+            // Get a fresh list of rule sets
+            await this.clearCache()
             const ruleSets = await this.getRuleSets()
-            const ruleSet = ruleSets.find(rs => rs.id === request.rule_set_id)
+            
+            // Look for the rule set again or pick a valid one
+            let ruleSet = ruleSets.find(rs => rs.id === userRequest.rule_set_id)
+            
+            if (!ruleSet && ruleSets.length > 0) {
+              // If requested rule set still not found, use the first available one
+              ruleSet = ruleSets[0]
+              console.log(`Auto-selecting rule set: ${ruleSet.id}`)
+            }
             
             if (!ruleSet) {
-              throw new Error(`Rule set not found: ${request.rule_set_id}`)
+              throw new Error(`No valid rule sets available. Please create a rule set first.`)
             }
             
             // Create a simplified simulation result
@@ -480,20 +522,66 @@ export const api = {
             const simplifiedResult: SimulationResult = {
               decision: ruleSet.default_action === 'block' ? 'BLOCKED' : 'ALLOWED',
               matched_rule: 'default_action',
-              reason: `Fallback evaluation using rule set default action: ${ruleSet.default_action.toUpperCase()}`,
+              reason: `Fallback evaluation using rule set "${ruleSet.name}" default action: ${ruleSet.default_action.toUpperCase()}`,
               evaluation_details: [
                 'Note: This is a fallback evaluation due to simulation endpoint issues',
-                `Using rule set: ${ruleSet.name}`,
+                `Using rule set: ${ruleSet.name} (${ruleSet.id})`,
                 `Rule set default action: ${ruleSet.default_action}`
               ],
               userId: getCurrentUserId()
             }
             
+            // Apply some basic rule evaluation logic for improved simulation
+            if (ruleSet.ip_rules && ruleSet.ip_rules.type === 'block' && 
+                ruleSet.ip_rules.cidrs.includes(userRequest.client_ip)) {
+              simplifiedResult.decision = 'BLOCKED'
+              simplifiedResult.matched_rule = 'ip_rules'
+              simplifiedResult.reason = `IP ${userRequest.client_ip} is in blocked CIDR list`
+              simplifiedResult.evaluation_details.push(`IP ${userRequest.client_ip} matched blocked CIDR`)
+            }
+            
+            if (ruleSet.path_rules && ruleSet.path_rules.length > 0) {
+              for (const pathRule of ruleSet.path_rules) {
+                if (pathRule.condition === 'equals' && pathRule.path_pattern === userRequest.path) {
+                  simplifiedResult.decision = 'BLOCKED'
+                  simplifiedResult.matched_rule = 'path_rules'
+                  simplifiedResult.reason = `Path ${userRequest.path} matches blocked path pattern`
+                  simplifiedResult.evaluation_details.push(`Path ${userRequest.path} matched blocked path pattern`)
+                  break
+                }
+              }
+            }
+            
             console.log('⚠️ Using simplified fallback evaluation:', simplifiedResult)
+            
+            // Log this evaluation
+            try {
+              const logEntry = {
+                timestamp: new Date().toISOString(),
+                rule_set_id: ruleSet.id,
+                client_ip: userRequest.client_ip,
+                result: simplifiedResult,
+                userId: getCurrentUserId(),
+                is_fallback: true
+              }
+              
+              // Attempt to log the evaluation
+              fetch(`${backendUrl}/logs`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-User-ID': getCurrentUserId()
+                },
+                body: JSON.stringify(logEntry)
+              }).catch(e => console.warn('Failed to log evaluation:', e))
+            } catch (logError) {
+              console.warn('Failed to create log entry:', logError)
+            }
+            
             return simplifiedResult
           } catch (directError) {
             console.error('All fallback methods failed:', directError)
-            throw error // Re-throw the original error
+            throw directError // Throw the specific error from the fallback
           }
         } else {
           // For non-404 errors, just re-throw
