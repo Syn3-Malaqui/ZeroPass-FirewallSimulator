@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
@@ -43,6 +43,23 @@ rule_sets: Dict[str, Any] = {}
 rate_limit_store: Dict[str, Dict[str, Any]] = {}
 evaluation_logs: List[Dict[str, Any]] = []
 
+# User isolation utility functions
+def get_user_id(x_user_id: Optional[str] = None) -> str:
+    """Extract user ID from header or generate a default one"""
+    if x_user_id:
+        return x_user_id
+    # Fallback for requests without user ID (legacy)
+    return "anonymous_user"
+
+def filter_by_user(items: List[Dict[str, Any]], user_id: str) -> List[Dict[str, Any]]:
+    """Filter items to only return those belonging to the specified user"""
+    return [item for item in items if item.get('userId') == user_id]
+
+def add_user_id_to_item(item: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    """Add user ID to an item"""
+    item['userId'] = user_id
+    return item
+
 # Models
 class IPRule(BaseModel):
     type: str = Field(..., pattern="^(allow|block)$")
@@ -84,6 +101,7 @@ class FirewallRuleSet(BaseModel):
     header_rules: List[HeaderRule] = []
     path_rules: List[PathRule] = []
     default_action: str = Field(..., pattern="^(allow|block)$")
+    userId: Optional[str] = None  # Added for user isolation
 
 class SimulationRequest(BaseModel):
     rule_set_id: str
@@ -93,12 +111,14 @@ class SimulationRequest(BaseModel):
     headers: Dict[str, str] = {}
     jwt_token: Optional[str] = None
     oauth_scopes: List[str] = []
+    userId: Optional[str] = None  # Added for user isolation
 
 class SimulationResult(BaseModel):
     decision: str
     matched_rule: Optional[str] = None
     reason: str
     evaluation_details: List[str] = []
+    userId: Optional[str] = None  # Added for user isolation
 
 # Utility functions
 def validate_cidr(cidr: str) -> bool:
@@ -234,55 +254,126 @@ async def root():
     return {"message": "ZeroPass Firewall Simulator API", "status": "running"}
 
 @app.post("/rules", response_model=Dict[str, str])
-async def create_rule_set(rule_set: FirewallRuleSet):
-    """Create or update a firewall rule set"""
+async def create_rule_set(rule_set: FirewallRuleSet, x_user_id: Optional[str] = Header(None)):
+    """Create or update a firewall rule set with user isolation"""
     try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Creating/updating rule set '{rule_set.id}' for user: {user_id}")
+        
+        # Add user ID to the rule set
+        rule_set_dict = rule_set.dict()
+        rule_set_dict = add_user_id_to_item(rule_set_dict, user_id)
+        
         # Validate CIDR blocks if IP rules exist
         if rule_set.ip_rules:
             for cidr in rule_set.ip_rules.cidrs:
                 if not validate_cidr(cidr):
-                    raise HTTPException(status_code=400, detail=f"Invalid CIDR block: {cidr}")
+                    raise HTTPException(status_code=400, detail=f"Invalid CIDR format: {cidr}")
         
-        rule_sets[rule_set.id] = rule_set.dict()
-        logger.info(f"Rule set {rule_set.id} created/updated")
+        # Store the rule set
+        rule_sets[rule_set.id] = rule_set_dict
         
+        logger.info(f"✅ Rule set '{rule_set.id}' stored successfully for user: {user_id}")
         return {"status": "success", "rule_set_id": rule_set.id}
     
     except Exception as e:
-        logger.error(f"Error creating rule set: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"❌ Error creating rule set: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/rules", response_model=List[Dict[str, Any]])
-async def get_rule_sets():
-    """Get all rule sets"""
-    return list(rule_sets.values())
+async def get_rule_sets(x_user_id: Optional[str] = Header(None)):
+    """Get all rule sets for the current user"""
+    try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Fetching rule sets for user: {user_id}")
+        
+        # Convert to list and filter by user
+        all_rule_sets = list(rule_sets.values())
+        user_rule_sets = filter_by_user(all_rule_sets, user_id)
+        
+        logger.info(f"📊 Returning {len(user_rule_sets)} rule sets for user: {user_id} (out of {len(all_rule_sets)} total)")
+        return user_rule_sets
+    
+    except Exception as e:
+        logger.error(f"❌ Error fetching rule sets: {str(e)}")
+        return []
 
 @app.get("/rules/{rule_set_id}", response_model=Dict[str, Any])
-async def get_rule_set(rule_set_id: str):
-    """Get a specific rule set"""
-    if rule_set_id not in rule_sets:
-        raise HTTPException(status_code=404, detail="Rule set not found")
-    return rule_sets[rule_set_id]
+async def get_rule_set(rule_set_id: str, x_user_id: Optional[str] = Header(None)):
+    """Get a specific rule set if it belongs to the current user"""
+    try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Fetching rule set '{rule_set_id}' for user: {user_id}")
+        
+        if rule_set_id not in rule_sets:
+            raise HTTPException(status_code=404, detail="Rule set not found")
+        
+        rule_set = rule_sets[rule_set_id]
+        
+        # Check if the rule set belongs to the current user
+        if rule_set.get('userId') != user_id:
+            logger.warning(f"🚫 Access denied: Rule set '{rule_set_id}' belongs to different user")
+            raise HTTPException(status_code=404, detail="Rule set not found")
+        
+        return rule_set
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching rule set: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/rules/{rule_set_id}")
-async def delete_rule_set(rule_set_id: str):
-    """Delete a rule set"""
-    if rule_set_id not in rule_sets:
-        raise HTTPException(status_code=404, detail="Rule set not found")
+async def delete_rule_set(rule_set_id: str, x_user_id: Optional[str] = Header(None)):
+    """Delete a rule set if it belongs to the current user"""
+    try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Deleting rule set '{rule_set_id}' for user: {user_id}")
+        
+        if rule_set_id not in rule_sets:
+            raise HTTPException(status_code=404, detail="Rule set not found")
+        
+        rule_set = rule_sets[rule_set_id]
+        
+        # Check if the rule set belongs to the current user
+        if rule_set.get('userId') != user_id:
+            logger.warning(f"🚫 Access denied: Cannot delete rule set '{rule_set_id}' - belongs to different user")
+            raise HTTPException(status_code=404, detail="Rule set not found")
+        
+        # Delete the rule set
+        del rule_sets[rule_set_id]
+        
+        logger.info(f"✅ Rule set '{rule_set_id}' deleted successfully for user: {user_id}")
+        return {"status": "success", "message": f"Rule set {rule_set_id} deleted"}
     
-    del rule_sets[rule_set_id]
-    logger.info(f"Rule set {rule_set_id} deleted")
-    
-    return {"status": "success", "message": f"Rule set {rule_set_id} deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting rule set: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/simulate", response_model=SimulationResult)
-async def simulate_request(simulation: SimulationRequest):
-    """Simulate an API request against firewall rules"""
+async def simulate_request(simulation: SimulationRequest, x_user_id: Optional[str] = Header(None)):
+    """Simulate an API request against firewall rules with user isolation"""
     try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Simulating request for user: {user_id}, rule_set: {simulation.rule_set_id}")
+        
+        # Add user ID to simulation if not present
+        if not simulation.userId:
+            simulation.userId = user_id
+        
         if simulation.rule_set_id not in rule_sets:
             raise HTTPException(status_code=404, detail="Rule set not found")
         
-        rule_set = FirewallRuleSet(**rule_sets[simulation.rule_set_id])
+        rule_set_data = rule_sets[simulation.rule_set_id]
+        
+        # Check if the rule set belongs to the current user
+        if rule_set_data.get('userId') != user_id:
+            logger.warning(f"🚫 Access denied: Rule set '{simulation.rule_set_id}' belongs to different user")
+            raise HTTPException(status_code=404, detail="Rule set not found")
+        
+        rule_set = FirewallRuleSet(**rule_set_data)
         evaluation_details = []
         
         # Check IP rules first
@@ -293,15 +384,19 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="ip_rules",
                     reason=f"IP {simulation.client_ip} is in blocked CIDR list",
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                # Log evaluation
-                evaluation_logs.append({
+                # Log evaluation with user ID
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
+                logger.info(f"🚫 Request blocked by IP rules for user: {user_id}")
                 return result
             
             elif rule_set.ip_rules.type == "allow" and not ip_match:
@@ -309,14 +404,18 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="ip_rules",
                     reason=f"IP {simulation.client_ip} is not in allowed CIDR list",
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                evaluation_logs.append({
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
+                logger.info(f"🚫 Request blocked by IP rules for user: {user_id}")
                 return result
             
             evaluation_details.append(f"IP rule check passed for {simulation.client_ip}")
@@ -328,14 +427,17 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="jwt_validation",
                     reason="JWT token required but not provided",
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                evaluation_logs.append({
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
                 return result
             
             jwt_valid, jwt_reason = validate_jwt_token(simulation.jwt_token, rule_set.jwt_validation)
@@ -344,38 +446,46 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="jwt_validation",
                     reason=jwt_reason,
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                evaluation_logs.append({
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
                 return result
             
             evaluation_details.append(jwt_reason)
         
-        # Check OAuth2 scopes
+        # Check OAuth2 validation
         if rule_set.oauth2_validation and rule_set.oauth2_validation.enabled:
-            if rule_set.oauth2_validation.required_scopes:
-                missing_scopes = set(rule_set.oauth2_validation.required_scopes) - set(simulation.oauth_scopes)
-                if missing_scopes:
-                    result = SimulationResult(
-                        decision="BLOCKED",
-                        matched_rule="oauth2_validation",
-                        reason=f"Missing required OAuth2 scopes: {list(missing_scopes)}",
-                        evaluation_details=evaluation_details
-                    )
-                    evaluation_logs.append({
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "rule_set_id": simulation.rule_set_id,
-                        "client_ip": simulation.client_ip,
-                        "result": result.dict()
-                    })
-                    return result
+            required_scopes = set(rule_set.oauth2_validation.required_scopes)
+            provided_scopes = set(simulation.oauth_scopes)
+            missing_scopes = required_scopes - provided_scopes
             
-            evaluation_details.append("OAuth2 scope validation passed")
+            if missing_scopes:
+                result = SimulationResult(
+                    decision="BLOCKED",
+                    matched_rule="oauth2_validation",
+                    reason=f"Missing required OAuth2 scopes: {list(missing_scopes)}",
+                    evaluation_details=evaluation_details,
+                    userId=user_id
+                )
+                log_entry = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "rule_set_id": simulation.rule_set_id,
+                    "client_ip": simulation.client_ip,
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
+                return result
+            
+            evaluation_details.append(f"OAuth2 scope validation passed: {list(provided_scopes)}")
         
         # Check rate limiting
         if rule_set.rate_limiting and rule_set.rate_limiting.enabled:
@@ -389,14 +499,17 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="rate_limiting",
                     reason=rate_reason,
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                evaluation_logs.append({
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
                 return result
             
             evaluation_details.append(rate_reason)
@@ -409,14 +522,17 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="header_rules",
                     reason=header_reason,
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                evaluation_logs.append({
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
                 return result
             evaluation_details.append(header_reason)
         
@@ -428,14 +544,17 @@ async def simulate_request(simulation: SimulationRequest):
                     decision="BLOCKED",
                     matched_rule="path_rules",
                     reason=path_reason,
-                    evaluation_details=evaluation_details
+                    evaluation_details=evaluation_details,
+                    userId=user_id
                 )
-                evaluation_logs.append({
+                log_entry = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "rule_set_id": simulation.rule_set_id,
                     "client_ip": simulation.client_ip,
-                    "result": result.dict()
-                })
+                    "result": result.dict(),
+                    "userId": user_id
+                }
+                evaluation_logs.append(log_entry)
                 return result
             evaluation_details.append(path_reason)
         
@@ -445,42 +564,101 @@ async def simulate_request(simulation: SimulationRequest):
             decision=decision,
             matched_rule="default_action",
             reason=f"All rules passed, applying default action: {rule_set.default_action}",
-            evaluation_details=evaluation_details
+            evaluation_details=evaluation_details,
+            userId=user_id
         )
         
-        evaluation_logs.append({
+        log_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "rule_set_id": simulation.rule_set_id,
             "client_ip": simulation.client_ip,
-            "result": result.dict()
-        })
+            "result": result.dict(),
+            "userId": user_id
+        }
+        evaluation_logs.append(log_entry)
         
+        logger.info(f"✅ Simulation completed for user: {user_id}, decision: {decision}")
         return result
     
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error during simulation: {str(e)}")
+        logger.error(f"❌ Error during simulation for user {get_user_id(x_user_id)}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/logs", response_model=List[Dict[str, Any]])
-async def get_evaluation_logs(limit: int = 100):
-    """Get recent evaluation logs"""
-    return evaluation_logs[-limit:]
+async def get_evaluation_logs(limit: int = 100, x_user_id: Optional[str] = Header(None)):
+    """Get evaluation logs for the current user only"""
+    try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Fetching evaluation logs for user: {user_id}")
+        
+        # Filter logs by user and apply limit
+        user_logs = filter_by_user(evaluation_logs, user_id)
+        limited_logs = user_logs[-limit:] if user_logs else []
+        
+        logger.info(f"📊 Returning {len(limited_logs)} logs for user: {user_id} (out of {len(evaluation_logs)} total)")
+        return limited_logs
+    
+    except Exception as e:
+        logger.error(f"❌ Error fetching logs: {str(e)}")
+        return []
 
 @app.delete("/logs")
-async def clear_evaluation_logs():
-    """Clear all evaluation logs"""
-    global evaluation_logs
-    evaluation_logs = []
-    return {"status": "success", "message": "Evaluation logs cleared"}
+async def clear_evaluation_logs(x_user_id: Optional[str] = Header(None)):
+    """Clear evaluation logs for the current user only"""
+    try:
+        user_id = get_user_id(x_user_id)
+        logger.info(f"🔒 Clearing evaluation logs for user: {user_id}")
+        
+        global evaluation_logs
+        # Remove only the current user's logs
+        user_logs_count = len(filter_by_user(evaluation_logs, user_id))
+        evaluation_logs = [log for log in evaluation_logs if log.get('userId') != user_id]
+        
+        logger.info(f"✅ Cleared {user_logs_count} logs for user: {user_id}")
+        return {"status": "success", "message": f"Cleared {user_logs_count} evaluation logs"}
+    
+    except Exception as e:
+        logger.error(f"❌ Error clearing logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "rule_sets_count": len(rule_sets),
-        "logs_count": len(evaluation_logs)
-    }
+    """Health check endpoint with basic statistics"""
+    try:
+        # Calculate user statistics
+        total_rule_sets = len(rule_sets)
+        total_logs = len(evaluation_logs)
+        
+        # Count unique users
+        unique_users = set()
+        for rule_set in rule_sets.values():
+            if rule_set.get('userId'):
+                unique_users.add(rule_set['userId'])
+        
+        for log in evaluation_logs:
+            if log.get('userId'):
+                unique_users.add(log['userId'])
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0",
+            "statistics": {
+                "total_rule_sets": total_rule_sets,
+                "total_logs": total_logs,
+                "unique_users": len(unique_users),
+                "uptime": "running"
+            }
+        }
+    except Exception as e:
+        logger.error(f"❌ Health check failed: {str(e)}")
+        return {
+            "status": "error", 
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 if __name__ == "__main__":
     import uvicorn
