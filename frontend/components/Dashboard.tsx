@@ -4,7 +4,7 @@ import React from 'react'
 import { useAppStore } from '@/lib/store'
 import { RuleBuilder } from './rules/RuleBuilder'
 import { APISimulator } from './simulator/APISimulator'
-import { EvaluationLogs } from './logs/EvaluationLogs'
+import { LogViewer } from './logs/LogViewer'
 
 export function Dashboard() {
   const { activeTab } = useAppStore()
@@ -13,7 +13,7 @@ export function Dashboard() {
     <div className="space-y-6">
       {activeTab === 'rules' && <RuleBuilder />}
       {activeTab === 'simulator' && <APISimulator />}
-      {activeTab === 'logs' && <EvaluationLogs />}
+      {activeTab === 'logs' && <LogViewer />}
     </div>
   )
 } 
