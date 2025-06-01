@@ -409,7 +409,7 @@ export const api = {
     const cacheKey = getCacheKey('logs')
     const cached = getFromCache(cacheKey)
     if (cached) return cached
-
+    
     try {
       const response = await apiClient.get('/logs')
       const logs = response.data
@@ -422,6 +422,11 @@ export const api = {
     }
   },
 
+  // Alias for getEvaluationLogs to maintain backward compatibility
+  async getLogs(): Promise<EvaluationLog[]> {
+    return this.getEvaluationLogs()
+  },
+
   async clearEvaluationLogs(): Promise<{ status: string; message: string }> {
     try {
       const response = await apiClient.delete('/logs')
@@ -431,6 +436,11 @@ export const api = {
       console.error('Failed to clear evaluation logs:', error)
       throw error
     }
+  },
+
+  // Alias for clearEvaluationLogs to maintain backward compatibility
+  async clearLogs(): Promise<{ status: string; message: string }> {
+    return this.clearEvaluationLogs()
   },
 
   // Templates
