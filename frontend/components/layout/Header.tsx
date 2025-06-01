@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
-import { Menu, X, User, RefreshCw, Trash2, Edit2, Check, X as XIcon } from 'lucide-react'
+import { Menu, X, User, RefreshCw, Trash2, Edit2, Check, X as XIcon, Activity, FileText } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { useUserSession } from '@/lib/userSession'
 
@@ -19,7 +18,13 @@ export function Header({ debugMode, onDebugToggle }: HeaderProps) {
   const [tempName, setTempName] = useState('')
   
   const { sessionInfo, updateName, resetSession, clearCache } = useUserSession()
-  const { userStats, resetSession: storeResetSession } = useAppStore()
+  const { userStats, resetSession: storeResetSession, activeTab, setActiveTab } = useAppStore()
+
+  const tabs = [
+    { id: 'rules' as const, label: 'Rule Builder', icon: Activity },
+    { id: 'simulator' as const, label: 'API Simulator', icon: Activity },
+    { id: 'logs' as const, label: 'Evaluation Logs', icon: FileText },
+  ]
 
   const handleEditName = () => {
     setTempName(sessionInfo.name)
@@ -52,69 +57,57 @@ export function Header({ debugMode, onDebugToggle }: HeaderProps) {
   }
 
   return (
-    <div className="sticky top-0 z-50 px-4 py-4">
-      <header className="bg-white/95 backdrop-blur-md border border-gray-200/50 rounded-2xl shadow-lg max-w-7xl mx-auto">
-        <div className="px-4 sm:px-6 lg:px-8">
+    <div className="sticky top-0 z-50 px-4 pt-4 transform scale-90 origin-top transition-all duration-300">
+      <header className="bg-white/95 backdrop-blur-md shadow-lg border border-gray-200/50 rounded-2xl mx-auto max-w-7xl">
+        <div className="px-6">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={onDebugToggle}
-                className={`
-                  flex items-center space-x-3 text-lg font-bold text-gray-900 
-                  hover:text-blue-600 transition-all duration-200 
-                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg p-1
-                  ${debugMode ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}
-                `}
-                aria-label="Toggle debug mode"
-              >
-                <div className={`
-                  w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl 
-                  flex items-center justify-center shadow-lg transition-all duration-200
-                  hover:scale-105 hover:shadow-xl
-                  ${debugMode ? 'ring-2 ring-blue-400 ring-offset-2 animate-pulse' : ''}
-                `}>
-                  <Image
-                    src="/favicon/favicon.svg"
-                    alt="ZeroPass Logo"
-                    width={24}
-                    height={24}
-                    priority
-                    className="w-6 h-6"
-                  />
-                </div>
-                <span className="hidden sm:block">ZeroPass</span>
-              </button>
+            {/* Logo and Title - Clickable for debug toggle */}
+            <div 
+              className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50/80 rounded-xl p-2 -m-2 transition-all duration-200 hover:scale-105"
+              onClick={onDebugToggle}
+              title="Click to toggle debug mode"
+            >
+              <div className={`relative w-10 h-10 transition-all duration-300 ${debugMode ? 'ring-2 ring-blue-300/50 ring-offset-2 ring-offset-white rounded-xl' : ''}`}>
+                <Image
+                  src="/favicon/favicon.svg"
+                  alt="ZeroPass Logo"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-contain"
+                  priority
+                />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">ZeroPass</h1>
+                <p className="text-xs text-gray-500 hidden sm:block">
+                  Firewall Simulator {debugMode && '(Debug Mode)'}
+                </p>
+              </div>
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-1">
-              <div className="bg-gray-50/80 backdrop-blur-sm rounded-2xl p-1 border border-gray-200/50">
-                <Link 
-                  href="/" 
-                  className="px-4 py-2 text-sm font-medium text-gray-700 rounded-xl hover:bg-white hover:text-blue-600 hover:shadow-sm transition-all duration-200"
-                >
-                  Dashboard
-                </Link>
-                <Link 
-                  href="/rules" 
-                  className="px-4 py-2 text-sm font-medium text-gray-700 rounded-xl hover:bg-white hover:text-blue-600 hover:shadow-sm transition-all duration-200"
-                >
-                  Rules
-                </Link>
-                <Link 
-                  href="/simulator" 
-                  className="px-4 py-2 text-sm font-medium text-gray-700 rounded-xl hover:bg-white hover:text-blue-600 hover:shadow-sm transition-all duration-200"
-                >
-                  Simulator
-                </Link>
-                <Link 
-                  href="/logs" 
-                  className="px-4 py-2 text-sm font-medium text-gray-700 rounded-xl hover:bg-white hover:text-blue-600 hover:shadow-sm transition-all duration-200"
-                >
-                  Logs
-                </Link>
-              </div>
+            <nav className="hidden md:flex items-center space-x-2 bg-gray-50/80 rounded-xl p-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.id
+                
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`
+                      flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 active:scale-95
+                      ${isActive 
+                        ? 'bg-white text-blue-700 shadow-md border border-blue-100/50' 
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                      }
+                    `}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
             </nav>
 
             {/* User Session & Mobile Menu */}
@@ -238,53 +231,65 @@ export function Header({ debugMode, onDebugToggle }: HeaderProps) {
                 )}
               </div>
 
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
-                aria-label="Toggle mobile menu"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="h-5 w-5 text-gray-600" />
-                ) : (
-                  <Menu className="h-5 w-5 text-gray-600" />
-                )}
-              </button>
+              {/* Mobile Menu Button */}
+              <div className="md:hidden">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2.5 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 transition-all duration-200 transform hover:scale-105"
+                >
+                  {isMobileMenuOpen ? (
+                    <X className="h-5 w-5" />
+                  ) : (
+                    <Menu className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Desktop Status Indicator */}
+              <div className="hidden md:flex items-center space-x-3">
+                <div className="flex items-center space-x-2 bg-green-50/80 px-3 py-1.5 rounded-full border border-green-200/50">
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
+                  <span className="text-xs font-medium text-green-700">Online</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Mobile Navigation */}
+          {/* Mobile Navigation Menu */}
           {isMobileMenuOpen && (
-            <div className="md:hidden border-t border-gray-200 mt-4 pt-4 pb-4 animate-slideDown">
-              <nav className="space-y-2">
-                <Link 
-                  href="/" 
-                  className="block px-4 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-all duration-200"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link 
-                  href="/rules" 
-                  className="block px-4 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-all duration-200"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Rules
-                </Link>
-                <Link 
-                  href="/simulator" 
-                  className="block px-4 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-all duration-200"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Simulator
-                </Link>
-                <Link 
-                  href="/logs" 
-                  className="block px-4 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-all duration-200"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Logs
-                </Link>
+            <div className="md:hidden border-t border-gray-200/30 animate-slideDown">
+              <nav className="py-4 space-y-2">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon
+                  const isActive = activeTab === tab.id
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id)
+                        setIsMobileMenuOpen(false)
+                      }}
+                      className={`
+                        w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-left transform hover:scale-[1.02] active:scale-[0.98]
+                        ${isActive 
+                          ? 'bg-blue-50/80 text-blue-700 border border-blue-200/50 shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/80'
+                        }
+                      `}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{tab.label}</span>
+                    </button>
+                  )
+                })}
+                {/* Mobile Status */}
+                <div className="flex items-center justify-center space-x-2 pt-3 border-t border-gray-200/30">
+                  <div className="flex items-center space-x-2 bg-green-50/80 px-3 py-1.5 rounded-full border border-green-200/50">
+                    <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
+                    <span className="text-xs font-medium text-green-700">Online</span>
+                  </div>
+                </div>
               </nav>
             </div>
           )}
