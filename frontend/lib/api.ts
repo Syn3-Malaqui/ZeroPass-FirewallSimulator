@@ -2,26 +2,42 @@ import axios from 'axios'
 import type { FirewallRuleSet, SimulationRequest, SimulationResult, EvaluationLog, RuleTemplate, ExploitScenario, ScenarioTestResult } from './store'
 import { getCurrentUserId, addUserIdToData, filterByCurrentUser } from './user'
 
-// API client configuration - ensure consistent backend URL
+// Keep a cached version of the backend URL for consistency
+let cachedBackendUrl: string | null = null;
+
 const getBackendUrl = () => {
-  // First check for runtime environment variable
+  if (cachedBackendUrl) {
+    return cachedBackendUrl;
+  }
+  
+  // First check for mobile - use production URL if screen is small
+  if (typeof window !== 'undefined' && window.innerWidth < 768 && process.env.NODE_ENV === 'production') {
+    cachedBackendUrl = 'https://zeropass-backend.onrender.com';
+    return cachedBackendUrl;
+  }
+  
+  // Then check for runtime environment variable
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    return 'https://zeropass-backend.onrender.com';
+    cachedBackendUrl = 'https://zeropass-backend.onrender.com';
+    return cachedBackendUrl;
   }
 
   // Then check for Next.js environment variable
   if (process.env.NEXT_PUBLIC_BACKEND_URL) {
-    return process.env.NEXT_PUBLIC_BACKEND_URL;
+    cachedBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    return cachedBackendUrl;
   }
 
   // Default to Render backend in production
   if (process.env.NODE_ENV === 'production') {
-    return 'https://zeropass-backend.onrender.com';
+    cachedBackendUrl = 'https://zeropass-backend.onrender.com';
+    return cachedBackendUrl;
   }
 
   // Local development fallback
-  return 'http://localhost:8000';
-}
+  cachedBackendUrl = 'http://localhost:8000';
+  return cachedBackendUrl;
+};
 
 const API_BASE_URL = getBackendUrl()
 
@@ -268,18 +284,13 @@ export const api = {
 
     try {
       console.log(`Fetching rule sets from ${getBackendUrl()}/rules`)
-      
-      // Clear any old cache in localStorage
-      localStorage.removeItem('zeropass_temp_rules')
-      
-      // Use our retry function instead of regular fetch
-      const response = await retryFetch(`${getBackendUrl()}/rules`, {
+      const response = await fetch(`${getBackendUrl()}/rules`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
           'X-User-ID': getCurrentUserId()
         }
-      }, 3) // 3 retries
+      })
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -290,30 +301,10 @@ export const api = {
       const ruleSets = await response.json()
       console.log(`Successfully fetched ${ruleSets.length} rule sets`)
       
-      // Cache the rule sets in both our API cache and localStorage as backup
       setCache(cacheKey, ruleSets)
-      try {
-        localStorage.setItem('zeropass_temp_rules', JSON.stringify(ruleSets))
-      } catch (e) {
-        console.warn('Could not cache rule sets in localStorage', e)
-      }
-      
       return ruleSets
     } catch (error) {
       console.error('Rule sets fetch error:', error)
-      
-      // Try to recover from localStorage if available
-      try {
-        const backupData = localStorage.getItem('zeropass_temp_rules')
-        if (backupData) {
-          console.log('Recovering rule sets from localStorage backup')
-          const parsedData = JSON.parse(backupData)
-          return parsedData
-        }
-      } catch (e) {
-        console.error('Could not recover from backup', e)
-      }
-      
       throw error instanceof APIError 
         ? error 
         : new APIError(`Failed to load rule sets: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -600,31 +591,18 @@ export const api = {
     try {
       console.log(`Testing scenario ${scenarioId} with rule set ${ruleSetId}`)
       
-      // Use our retry function instead of regular fetch
-      const response = await retryFetch(`${getBackendUrl()}/scenarios/${scenarioId}/test?rule_set_id=${encodeURIComponent(ruleSetId)}`, {
+      const response = await fetch(`${getBackendUrl()}/scenarios/${scenarioId}/test?rule_set_id=${encodeURIComponent(ruleSetId)}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
           'X-User-ID': getCurrentUserId()
         }
-      }, 3) // 3 retries
+      })
       
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`API Error (${response.status}):`, errorText)
-        
-        // For mobile specifically, if we get a 404, try to reload rule sets
-        if (response.status === 404) {
-          console.log('Rule set not found, forcing reload of rule sets')
-          // Clear the rule set cache and try to reload
-          clearSessionData('rules')
-          clearUserCache()
-          
-          // Wait a moment before throwing
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-        
         throw new APIError(`API Error (${response.status}): ${response.statusText}. Try reloading rule sets.`, response.status)
       }
       
@@ -716,43 +694,4 @@ export const handleAPIError = (error: any): string => {
   }
   
   return error.message || 'An unexpected error occurred'
-}
-
-// Helper function to retry API calls, especially useful for mobile devices
-async function retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Attempt ${attempt}/${maxRetries} for ${url}`)
-      const response = await fetch(url, options);
-      
-      // Return successful responses immediately
-      if (response.ok) {
-        if (attempt > 1) {
-          console.log(`Request succeeded after ${attempt} attempts`)
-        }
-        return response;
-      }
-      
-      // For 404s on rule sets, we'll retry with a delay
-      if (response.status === 404 && url.includes('/rules')) {
-        console.warn(`Rule set not found (404), retrying (${attempt}/${maxRetries})...`);
-        // Wait longer between retries
-        await new Promise(resolve => setTimeout(resolve, attempt * 1000));
-        continue;
-      }
-      
-      // For other error status codes, don't retry
-      return response;
-    } catch (error) {
-      console.error(`Fetch attempt ${attempt} failed:`, error);
-      lastError = error instanceof Error ? error : new Error(String(error));
-      
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-  }
-  
-  throw lastError || new Error(`Failed after ${maxRetries} retries`);
 } 
