@@ -311,6 +311,304 @@ export function RuleForm({ initialData, onSave, onCancel, isLoading }: Props) {
           </div>
         )}
 
+        {/* JWT Validation Section */}
+        {activeSection === 'jwt' && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                {...form.register('jwt_enabled')}
+                className="rounded"
+              />
+              <label className="text-sm font-medium text-gray-700">Enable JWT Validation</label>
+            </div>
+
+            {form.watch('jwt_enabled') && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">JWT Issuer</label>
+                    <input
+                      {...form.register('jwt_issuer')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="e.g., https://auth.example.com"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">The issuer claim (iss) to validate</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">JWT Audience</label>
+                    <input
+                      {...form.register('jwt_audience')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="e.g., api.example.com"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">The audience claim (aud) to validate</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Required Claims (JSON)</label>
+                  <textarea
+                    {...form.register('jwt_required_claims')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                    placeholder='{"role": "admin", "permissions": ["read", "write"]}'
+                    rows={4}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Additional claims that must be present in the JWT</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* OAuth2 Validation Section */}
+        {activeSection === 'oauth2' && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                {...form.register('oauth2_enabled')}
+                className="rounded"
+              />
+              <label className="text-sm font-medium text-gray-700">Enable OAuth2 Scope Validation</label>
+            </div>
+
+            {form.watch('oauth2_enabled') && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Required Scopes</label>
+                <div className="space-y-2">
+                  {form.watch('oauth2_scopes')?.map((_, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <input
+                        {...form.register(`oauth2_scopes.${index}` as const)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="e.g., read, write, admin"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = form.getValues('oauth2_scopes') || []
+                          form.setValue('oauth2_scopes', current.filter((_, i) => i !== index))
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = form.getValues('oauth2_scopes') || []
+                      form.setValue('oauth2_scopes', [...current, ''])
+                    }}
+                    className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Scope</span>
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Scopes that must be present in the OAuth2 token</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rate Limiting Section */}
+        {activeSection === 'rate' && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                {...form.register('rate_limit_enabled')}
+                className="rounded"
+              />
+              <label className="text-sm font-medium text-gray-700">Enable Rate Limiting</label>
+            </div>
+
+            {form.watch('rate_limit_enabled') && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Requests per Window</label>
+                  <input
+                    type="number"
+                    {...form.register('rate_limit_requests', { valueAsNumber: true })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="100"
+                    min="1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Maximum number of requests allowed</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Window (seconds)</label>
+                  <input
+                    type="number"
+                    {...form.register('rate_limit_window', { valueAsNumber: true })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="60"
+                    min="1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Time window in seconds</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Header Rules Section */}
+        {activeSection === 'headers' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">Header Rules</h3>
+              <button
+                type="button"
+                onClick={() => appendHeaderRule({ header_name: '', condition: 'equals', value: '' })}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Header Rule</span>
+              </button>
+            </div>
+
+            {headerRuleFields.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <p className="text-gray-500">No header rules defined. Click "Add Header Rule" to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {headerRuleFields.map((field, index) => (
+                  <div key={field.id} className="p-4 bg-gray-50 rounded-lg border">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+                      <div className="sm:col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Header Name</label>
+                        <input
+                          {...form.register(`header_rules.${index}.header_name` as const)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          placeholder="Authorization"
+                        />
+                      </div>
+                      
+                      <div className="sm:col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Condition</label>
+                        <select
+                          {...form.register(`header_rules.${index}.condition` as const)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        >
+                          <option value="equals">Equals</option>
+                          <option value="contains">Contains</option>
+                          <option value="regex">Regex</option>
+                          <option value="exists">Exists</option>
+                        </select>
+                      </div>
+                      
+                      <div className="sm:col-span-5">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Value</label>
+                        <input
+                          {...form.register(`header_rules.${index}.value` as const)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          placeholder="Bearer token..."
+                          disabled={form.watch(`header_rules.${index}.condition`) === 'exists'}
+                        />
+                      </div>
+                      
+                      <div className="sm:col-span-1">
+                        <button
+                          type="button"
+                          onClick={() => removeHeaderRule(index)}
+                          className="w-full p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Path Rules Section */}
+        {activeSection === 'paths' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">Path Rules</h3>
+              <button
+                type="button"
+                onClick={() => appendPathRule({ methods: ['GET'], path_pattern: '', condition: 'equals' })}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Path Rule</span>
+              </button>
+            </div>
+
+            {pathRuleFields.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <p className="text-gray-500">No path rules defined. Click "Add Path Rule" to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pathRuleFields.map((field, index) => (
+                  <div key={field.id} className="p-4 bg-gray-50 rounded-lg border">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+                      <div className="sm:col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">HTTP Methods</label>
+                        <div className="space-y-1">
+                          {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((method) => (
+                            <label key={method} className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                value={method}
+                                {...form.register(`path_rules.${index}.methods` as const)}
+                                className="rounded"
+                              />
+                              <span className="text-sm">{method}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="sm:col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Condition</label>
+                        <select
+                          {...form.register(`path_rules.${index}.condition` as const)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        >
+                          <option value="equals">Equals</option>
+                          <option value="prefix">Starts With</option>
+                          <option value="regex">Regex</option>
+                        </select>
+                      </div>
+                      
+                      <div className="sm:col-span-5">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Path Pattern</label>
+                        <input
+                          {...form.register(`path_rules.${index}.path_pattern` as const)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          placeholder="/api/users"
+                        />
+                      </div>
+                      
+                      <div className="sm:col-span-1">
+                        <button
+                          type="button"
+                          onClick={() => removePathRule(index)}
+                          className="w-full p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-5 border-t">
           <button

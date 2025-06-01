@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { FirewallRuleSet, SimulationRequest, SimulationResult, EvaluationLog } from './store'
+import { userSession } from './userSession'
 
 // API client configuration - ensure consistent backend URL
 const getBackendUrl = () => {
@@ -33,9 +34,22 @@ const apiClient = axios.create({
   withCredentials: false, // Disable credentials for CORS
 })
 
-// Request interceptor for logging
+// Request interceptor for logging and user session
 apiClient.interceptors.request.use(
   (config) => {
+    // Add user session ID to all requests
+    if (typeof window !== 'undefined') {
+      const session = userSession.getSession()
+      config.headers['X-User-Session'] = session.id
+      
+      // Add cache busting parameter for GET requests
+      if (config.method === 'get') {
+        const timestamp = Date.now()
+        const separator = config.url?.includes('?') ? '&' : '?'
+        config.url = `${config.url}${separator}_t=${timestamp}`
+      }
+    }
+    
     console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
     return config
   },
@@ -90,7 +104,7 @@ export const api = {
     return response.data
   },
 
-  // Rule Set Management
+  // Rule Set Management (User Isolated)
   async getRuleSets(): Promise<FirewallRuleSet[]> {
     const response = await apiClient.get('/rules')
     return response.data
@@ -116,13 +130,13 @@ export const api = {
     return response.data
   },
 
-  // Simulation
+  // Simulation (User Isolated)
   async simulate(request: SimulationRequest): Promise<SimulationResult> {
     const response = await apiClient.post('/simulate', request)
     return response.data
   },
 
-  // Logs
+  // Logs (User Isolated)
   async getLogs(limit = 100): Promise<EvaluationLog[]> {
     const response = await apiClient.get(`/logs?limit=${limit}`)
     return response.data
@@ -132,6 +146,31 @@ export const api = {
     const response = await apiClient.delete('/logs')
     return response.data
   },
+
+  // Session Management
+  async getUserStats(): Promise<{ rule_sets: number; simulations: number; logs: number }> {
+    try {
+      const response = await apiClient.get('/user/stats')
+      return response.data
+    } catch (error) {
+      // Return default stats if endpoint doesn't exist yet
+      return { rule_sets: 0, simulations: 0, logs: 0 }
+    }
+  },
+
+  async clearUserData(): Promise<{ status: string; message: string }> {
+    try {
+      const response = await apiClient.delete('/user/data')
+      return response.data
+    } catch (error) {
+      // Fallback to clearing individual resources
+      await Promise.allSettled([
+        this.clearLogs(),
+        // Note: We don't clear rule sets automatically for safety
+      ])
+      return { status: 'success', message: 'User data cleared (partial)' }
+    }
+  }
 }
 
 // Utility functions for validation
