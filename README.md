@@ -1,438 +1,323 @@
-# ZeroPass Firewall Simulator
+# 🛡️ ZeroPass Firewall Simulator
 
-A full-stack web application that simulates and validates Enterprise API Gateway firewall rules in real-time. Built with Next.js frontend and FastAPI backend, designed for enterprise security testing and rule validation without requiring production infrastructure.
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+[![Next.js](https://img.shields.io/badge/Next.js-14.0.4-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
 
-## Features
+A modern, full-stack Enterprise API Gateway Firewall Simulator with **complete user isolation**, **containerized deployment**, and **production-ready architecture**. Test and validate complex firewall rules in real-time without requiring production infrastructure.
 
-- **High-Fidelity Rule Simulation**: Implements enterprise-grade firewall logic with IP filtering, JWT validation, OAuth2 scopes, and rate limiting
-- **Six Rule Categories**: IP Rules, JWT Validation, OAuth2 Scopes, Rate Limiting, Header Rules, and Path Rules
-- **Comprehensive Rule Builder**: Visual form-based interface for creating complex firewall configurations
-- **Real-Time API Testing**: Interactive simulator for testing API requests against defined rule sets
-- **Detailed Evaluation Logs**: Complete audit trail with step-by-step rule evaluation and decision reasoning
-- **Production-Ready Architecture**: Scalable FastAPI backend with Next.js frontend optimized for Vercel deployment
-- **Zero Infrastructure Dependencies**: Runs locally or in cloud without requiring actual firewall hardware
-- **Enterprise Security Standards**: Implements industry-standard authentication and authorization patterns
+## 🌟 Key Features
 
-## Components
+### 🔒 **Complete User Isolation**
+- **Private Workspaces**: Each user gets isolated data storage
+- **Session Management**: Secure session controls in header UI
+- **Cross-Tab Protection**: Prevents data leakage between sessions
+- **Backend Filtering**: Server-side data isolation with X-User-ID headers
 
-### Rule Builder (Frontend)
-Provides intuitive form-based interface for creating firewall rule sets with real-time validation, CIDR notation support, and JSON configuration preview.
+### 🎨 **Modern UI/UX**
+- **Floating Header Design**: Glass morphism with modern aesthetics
+- **Custom Favicon System**: Professional PWA-ready branding
+- **Responsive Layout**: Optimized for desktop, tablet, and mobile
+- **Interactive Components**: Real-time validation and feedback
 
-### API Simulator (Frontend)
-- Interactive request builder with method, path, headers, and authentication
-- JWT token generation and validation testing
-- OAuth2 scope simulation with real-time results
-- Visual decision display with detailed reasoning
+### 🏗️ **Production Architecture**
+- **Docker Containerization**: Complete multi-service setup
+- **Health Monitoring**: Built-in health checks and logging
+- **Security Headers**: NGINX reverse proxy with rate limiting
+- **Scalable Design**: Horizontal scaling with load balancing
 
-### FastAPI Backend Engine
-- **Rule Storage**: In-memory rule set management with REST API
-- **Request Simulation**: Complete firewall evaluation pipeline
-- **Authentication Validation**: JWT signature verification and claims checking
-- **Rate Limiting**: Sliding window rate limiting with configurable thresholds
-- **IP Filtering**: CIDR-based allow/block lists with IPv4/IPv6 support
-- **Header/Path Matching**: Regex, exact, and prefix matching capabilities
+### 🚀 **Enterprise Rule Engine**
+- **Six Rule Categories**: IP, JWT, OAuth2, Rate Limiting, Headers, Paths
+- **Real-Time Simulation**: Sub-millisecond rule evaluation
+- **Comprehensive Logging**: Complete audit trail with reasoning
+- **Advanced Validation**: Regex, CIDR, JSON schema support
 
-### Evaluation Logger
-Real-time logging system that captures:
-- Complete request details and rule evaluation steps
-- Decision rationale with matched rule identification
-- Performance metrics and evaluation timing
-- Historical analysis with filtering capabilities
+## 📋 Rule Categories
 
-### Dashboard Interface
-Modern React-based interface with:
-- Tabbed navigation between rule building, simulation, and logs
-- Real-time status indicators and health monitoring
-- Responsive design optimized for desktop and mobile
-- Dark/light theme support with accessibility features
+| Category | Features | Use Cases |
+|----------|----------|-----------|
+| **🌐 IP Rules** | CIDR-based allow/block lists, IPv4/IPv6 support | Geolocation filtering, VPN detection |
+| **🔑 JWT Validation** | Signature verification, claims checking, issuer validation | Authentication, token-based security |
+| **🛡️ OAuth2 Scopes** | Fine-grained permissions, scope enforcement | Authorization, API access control |
+| **⚡ Rate Limiting** | Sliding window, configurable thresholds | DDoS protection, API quotas |
+| **📝 Header Rules** | Custom validation, regex matching, existence checks | Content-type enforcement, API versioning |
+| **🛣️ Path Rules** | HTTP method filtering, URL pattern matching | Endpoint protection, route-based access |
 
-## Performance
+## 🏃‍♂️ Quick Start
 
-- **Rule Evaluation Speed**: Sub-millisecond rule processing for typical configurations
-- **Concurrent Requests**: Supports 1000+ simultaneous API simulations
-- **Memory Efficient**: Optimized for cloud deployment with minimal resource usage
-- **Zero Latency**: Local processing eliminates network dependencies during testing
+### 🐳 Docker Deployment (Recommended)
 
-## Rule Categories
-
-The simulator supports six comprehensive rule categories:
-
-1. **IP Rules**: CIDR-based allow/block lists with IPv4/IPv6 support
-2. **JWT Validation**: Token signature verification, issuer/audience checking, claims validation
-3. **OAuth2 Scopes**: Fine-grained permission checking with required scope enforcement
-4. **Rate Limiting**: Sliding window algorithms with configurable thresholds and time windows
-5. **Header Rules**: Custom header validation with regex, exact match, and existence checking
-6. **Path Rules**: HTTP method and URL pattern matching with prefix, exact, and regex support
-
-## Dependencies
-
-### Frontend
-- Next.js 14.0.4 with App Router
-- React 18 with TypeScript
-- TailwindCSS 3.3.0 for styling
-- Zustand 4.4.7 for state management
-- React Hook Form 7.48.2 for form handling
-- Zod 3.22.4 for schema validation
-- Axios 1.6.2 for API communication
-
-### Backend
-- FastAPI 0.104.1 for REST API
-- Uvicorn 0.24.0 for ASGI server
-- Pydantic 2.5.0 for data validation
-- PyJWT 2.8.0 for token handling
-- Python ipaddress for CIDR validation
-
-## Building the Project
-
-### Project Structure
-```
-ZeroPass-FirewallSimulator/
-├── frontend/           # Next.js frontend application
-├── backend/            # FastAPI backend application
-├── docs/               # Documentation files
-├── Dockerfile          # Multi-stage Dockerfile for building both services
-└── docker-compose.yml  # Docker Compose configuration
-```
-
-### Development Build
 ```bash
-# Install frontend dependencies
+# Clone the repository
+git clone https://github.com/your-username/ZeroPass-FirewallSimulator.git
+cd ZeroPass-FirewallSimulator
+
+# Start all services
+docker-compose up -d
+
+# Access the application
+open http://localhost:3000
+```
+
+**Services:**
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health
+
+### 🧑‍💻 Local Development
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+python main.py
+
+# Frontend (new terminal)
 cd frontend
 npm install
-
-# Install backend dependencies
-cd backend && pip install -r requirements.txt
-
-# Create environment configuration
-cp env.example .env.local
+npm run dev
 ```
 
-### Production Build
+## 🏗️ Architecture
+
+### Core Components
+
+#### 🖥️ **Frontend (Next.js 14)**
+- **Modern React UI** with TypeScript and Tailwind CSS
+- **User Session Management** with localStorage isolation
+- **Real-time Rule Builder** with form validation
+- **API Simulator Interface** with interactive testing
+- **Evaluation Log Viewer** with filtering and search
+
+#### ⚙️ **Backend (FastAPI)**
+- **Rule Storage Engine** with in-memory management
+- **Request Simulation Pipeline** with comprehensive evaluation
+- **User Isolation Layer** with X-User-ID header filtering
+- **Health Monitoring** with statistics and metrics
+- **Audit Logging** with detailed evaluation trails
+
+#### 🗄️ **Data Layer (Redis)**
+- **Session Storage** for user isolation
+- **Rate Limiting Store** with sliding windows
+- **Cache Management** with automatic cleanup
+- **Performance Optimization** with configurable memory limits
+
+## 🔧 Configuration
+
+### Environment Variables
+
+#### Frontend (`.env.local`)
 ```bash
-# Build optimized frontend
-cd frontend
-npm run build
-
-# Create Docker images
-docker-compose build
-
-# Deploy to Vercel
-vercel --prod
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+NODE_ENV=development
 ```
 
-## Creating Production Deployments
-
-### Vercel Deployment (Recommended)
-
-**Frontend Deployment:**
+#### Backend (`.env`)
 ```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy frontend
-cd frontend
-vercel --prod
-
-# Set environment variables in Vercel dashboard
-NEXT_PUBLIC_BACKEND_URL=https://your-backend-url.com
+CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+ENVIRONMENT=production
+LOG_LEVEL=INFO
 ```
 
-**Backend Deployment Options:**
+### Docker Profiles
 
-**Railway (Recommended):**
+- **Development**: `docker-compose -f docker-compose.dev.yml up`
+- **Production**: `docker-compose up`
+- **With NGINX**: `docker-compose --profile production up`
+
+## 📊 User Interface
+
+### 🏠 **Dashboard**
+- **Session Controls**: User ID display, cache management, new session
+- **Service Status**: Real-time health monitoring
+- **Navigation**: Tabbed interface for all features
+
+### 🔧 **Rule Builder**
+- **Visual Form Interface**: Intuitive rule creation
+- **Real-time Validation**: Instant feedback on configuration
+- **Feature Badges**: Color-coded rule type indicators
+- **JSON Preview**: Complete rule set configuration display
+
+### 🧪 **API Simulator**
+- **Request Builder**: Method, path, headers, authentication
+- **JWT Token Support**: Token generation and validation
+- **OAuth2 Simulation**: Scope testing with real-time results
+- **Response Analysis**: Detailed decision reasoning
+
+### 📈 **Evaluation Logs**
+- **Real-time Monitoring**: Live request tracking
+- **Detailed Analysis**: Step-by-step rule evaluation
+- **Filtering & Search**: Advanced log management
+- **Export Capabilities**: CSV/JSON data export
+
+## 🚀 Deployment Options
+
+### 🐳 **Docker (Recommended)**
+
+**Production Deployment:**
 ```bash
-# Connect GitHub repository to Railway
-# Deploy backend folder automatically
-# Set environment variables:
-PORT=8000
-CORS_ORIGINS=https://your-frontend-url.vercel.app
+# Build and deploy
+docker-compose up -d
+
+# With NGINX reverse proxy
+docker-compose --profile production up -d
+
+# Monitor services
+docker-compose ps
+docker-compose logs -f
 ```
 
-**Render:**
+**Development with Hot Reloading:**
 ```bash
-# Create new Web Service on Render
+# Start development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+```
+
+### ☁️ **Cloud Platforms**
+
+#### **Vercel + Railway**
+```bash
+# Deploy frontend to Vercel
+cd frontend && vercel --prod
+
+# Deploy backend to Railway
+# Connect GitHub repository
+# Set environment variables in dashboard
+```
+
+#### **Render**
+```bash
+# Frontend: Static Site
+# Build Command: npm run build
+# Publish Directory: frontend/.next
+
+# Backend: Web Service  
 # Build Command: pip install -r requirements.txt
 # Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
-# Root Directory: backend
 ```
 
-### Docker Deployment
+## 🔐 Security Features
 
-**Development Environment:**
+### **User Isolation**
+- ✅ Complete data separation between users
+- ✅ Session-based access control
+- ✅ Server-side filtering and validation
+- ✅ Cross-tab protection
+
+### **Container Security**
+- ✅ Non-root users in all containers
+- ✅ Security headers via NGINX
+- ✅ Network isolation between services
+- ✅ Resource limits and health checks
+
+### **API Security**
+- ✅ CORS configuration
+- ✅ Rate limiting protection
+- ✅ Request validation
+- ✅ Audit logging
+
+## 📈 Performance
+
+- **Rule Evaluation**: Sub-millisecond processing
+- **Concurrent Users**: 1000+ simultaneous sessions
+- **Memory Efficient**: Optimized for cloud deployment
+- **Scalable Architecture**: Horizontal scaling support
+
+## 🛠️ Development
+
+### **Prerequisites**
+- Docker 20.10+ & Docker Compose 2.0+
+- Node.js 18+ (for local development)
+- Python 3.11+ (for local development)
+
+### **Development Commands**
 ```bash
-# Start both services
+# Start development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# View logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Execute commands in containers
+docker-compose exec backend bash
+docker-compose exec frontend sh
+
+# Rebuild services
 docker-compose up --build
-
-# Access services
-# Frontend: http://localhost:3000
-# Backend: http://localhost:8000
 ```
 
-**Production Containers:**
+### **Project Structure**
+```
+ZeroPass-FirewallSimulator/
+├── 🎨 frontend/              # Next.js application
+│   ├── app/                  # App router pages
+│   ├── components/           # React components
+│   ├── lib/                  # Utilities and stores
+│   └── public/favicon/       # Favicon system
+├── ⚙️ backend/               # FastAPI application
+│   ├── main.py              # Main application
+│   └── requirements.txt     # Python dependencies
+├── 🐳 Docker files           # Container configuration
+│   ├── Dockerfile           # Multi-stage build
+│   ├── docker-compose.yml   # Production setup
+│   ├── docker-compose.dev.yml # Development setup
+│   └── nginx.conf           # Reverse proxy config
+└── 📚 Documentation
+    ├── DOCKER.md            # Container documentation
+    └── README.md            # This file
+```
+
+## 🧪 Testing
+
+### **Health Checks**
 ```bash
-# Build production images
-docker build -t zeropass-frontend --target frontend .
-docker build -t zeropass-backend --target backend .
-
-# Deploy to cloud container service
-docker run -d -p 3000:3000 zeropass-frontend
-docker run -d -p 8000:8000 zeropass-backend
-```
-
-## Running the Application
-
-### Local Development (Recommended)
-
-**Start Backend Server:**
-```bash
-cd backend
-python main.py
-# Backend available at http://localhost:8000
-```
-
-**Start Frontend Development Server:**
-```bash
-cd frontend
-npm run dev
-# Frontend available at http://localhost:3000
-```
-
-### Docker Compose
-```bash
-docker-compose up
-# Frontend: http://localhost:3000
-# Backend: http://localhost:8000
-# Redis: http://localhost:6379 (optional)
-```
-
-### Production Deployment
-```bash
-# Frontend on Vercel
-cd frontend
-vercel --prod
-
-# Backend on Railway/Render/Heroku
-# Configure environment variables and deploy
-```
-
-## Usage
-
-### Rule Builder Interface
-
-1. **Navigation**: Click "Rule Builder" tab in the header
-2. **Create Rule Set**:
-   - **Basic Settings**: Configure name, description, default action
-   - **IP Rules**: Set CIDR allow/block lists
-   - **JWT Validation**: Configure token validation requirements
-   - **OAuth2 Scopes**: Define required permission scopes
-   - **Rate Limiting**: Set request thresholds and time windows
-   - **Header Rules**: Custom header validation patterns
-   - **Path Rules**: HTTP method and URL pattern matching
-
-3. **Save and Manage**:
-   - Save rule sets for reuse
-   - Edit existing configurations
-   - Copy rule sets for variations
-   - Delete unused rule sets
-
-### API Simulator Interface
-
-1. **Select Rule Set**: Choose from available firewall configurations
-2. **Configure Request**:
-   - **Client IP**: Set source IP address for testing
-   - **HTTP Method**: Select GET, POST, PUT, DELETE, etc.
-   - **Request Path**: Define API endpoint URL
-   - **Headers**: JSON-formatted request headers
-   - **JWT Token**: Paste token or generate sample
-   - **OAuth Scopes**: Comma-separated scope list
-
-3. **Run Simulation**:
-   - Click "Simulate Request" to execute
-   - View real-time ALLOWED/BLOCKED decision
-   - Analyze detailed evaluation reasoning
-   - Review step-by-step rule processing
-
-### Evaluation Logs Interface
-
-1. **View History**: Access complete evaluation audit trail
-2. **Filter Results**: Search by rule set, IP address, or decision
-3. **Export Data**: Download logs for compliance reporting
-4. **Real-Time Updates**: Monitor live simulation activity
-
-## Rule Configuration Examples
-
-### Enterprise API Protection
-```json
-{
-  "name": "Production API Gateway",
-  "default_action": "block",
-  "ip_rules": {
-    "type": "allow",
-    "cidrs": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
-  },
-  "jwt_validation": {
-    "enabled": true,
-    "issuer": "https://auth.company.com",
-    "audience": "api.company.com",
-    "required_claims": {
-      "role": "user",
-      "verified": true
-    }
-  },
-  "rate_limiting": {
-    "enabled": true,
-    "requests_per_window": 100,
-    "window_seconds": 60
-  }
-}
-```
-
-### Development Environment
-```json
-{
-  "name": "Development Testing",
-  "default_action": "allow",
-  "rate_limiting": {
-    "enabled": true,
-    "requests_per_window": 1000,
-    "window_seconds": 60
-  },
-  "header_rules": [
-    {
-      "header_name": "X-API-Key",
-      "condition": "exists"
-    },
-    {
-      "header_name": "User-Agent",
-      "condition": "regex",
-      "value": "^(curl|PostmanRuntime).*"
-    }
-  ]
-}
-```
-
-### Microservices Gateway
-```json
-{
-  "name": "Internal Services",
-  "default_action": "block",
-  "oauth2_validation": {
-    "enabled": true,
-    "required_scopes": ["read", "write"]
-  },
-  "path_rules": [
-    {
-      "methods": ["GET"],
-      "path_pattern": "/api/v1/health",
-      "condition": "exact"
-    },
-    {
-      "methods": ["POST", "PUT"],
-      "path_pattern": "/api/v1/.*",
-      "condition": "regex"
-    }
-  ]
-}
-```
-
-## Advanced Features
-
-### Custom JWT Claims Validation
-```javascript
-// Configure complex JWT requirements
-{
-  "jwt_validation": {
-    "enabled": true,
-    "issuer": "https://auth.company.com",
-    "required_claims": {
-      "role": "admin",
-      "department": "engineering",
-      "clearance_level": 3
-    }
-  }
-}
-```
-
-### Rate Limiting Strategies
-```python
-# Sliding window rate limiting
-rate_limiting: {
-  "enabled": true,
-  "requests_per_window": 100,
-  "window_seconds": 60  # 100 requests per minute
-}
-
-# Burst protection
-rate_limiting: {
-  "enabled": true, 
-  "requests_per_window": 10,
-  "window_seconds": 1   # 10 requests per second
-}
-```
-
-### Advanced Header Matching
-```json
-{
-  "header_rules": [
-    {
-      "header_name": "Authorization",
-      "condition": "regex",
-      "value": "^Bearer [A-Za-z0-9-._~+/]+=*$"
-    },
-    {
-      "header_name": "Content-Type",
-      "condition": "equals",
-      "value": "application/json"
-    }
-  ]
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-- **CORS Errors**: Verify NEXT_PUBLIC_BACKEND_URL environment variable
-- **Rule Evaluation Failures**: Check CIDR notation and JSON syntax
-- **Performance Issues**: Enable Redis for production rate limiting
-- **Authentication Problems**: Validate JWT token format and claims
-
-### Debug Mode
-```bash
-# Enable detailed logging
-export LOG_LEVEL=DEBUG
-
-# Check backend health
+# Backend health
 curl http://localhost:8000/health
 
-# Verify frontend connection
-curl http://localhost:3000/api/backend/health
+# Frontend health  
+curl http://localhost:3000
+
+# Redis health
+docker-compose exec redis redis-cli ping
 ```
 
-### Production Monitoring
-- Health check endpoints: `/health` (backend), `/` (frontend)
-- Evaluation metrics: Request count, response times, error rates
-- Log aggregation: Structured JSON logging for analysis
-- Performance monitoring: Built-in Vercel Analytics support
+### **User Isolation Testing**
+```bash
+# Test different users
+curl -H "X-User-ID: user1" http://localhost:8000/rules
+curl -H "X-User-ID: user2" http://localhost:8000/rules
+```
 
-## Technical Architecture
+## 🤝 Contributing
 
-### Security Implementation Pipeline
-1. **Request Ingestion**: Parse and validate incoming simulation requests
-2. **IP Validation**: CIDR-based allow/block list evaluation
-3. **Authentication**: JWT signature verification and claims validation
-4. **Authorization**: OAuth2 scope checking and permission validation
-5. **Rate Limiting**: Sliding window threshold enforcement
-6. **Header/Path Matching**: Custom rule evaluation with regex support
-7. **Decision Rendering**: Detailed response with evaluation reasoning
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+3. **Commit** your changes: `git commit -m 'Add amazing feature'`
+4. **Push** to branch: `git push origin feature/amazing-feature`
+5. **Open** a Pull Request
 
-### Key Security Features
-- **Zero Trust Architecture**: Default deny with explicit allow rules
-- **Defense in Depth**: Multiple validation layers with fail-safe defaults
-- **Audit Compliance**: Complete request/response logging with immutable trails
-- **Performance Optimized**: Sub-millisecond rule evaluation with caching
+## 📄 License
 
-### Enterprise Integration
-- **REST API**: Complete programmatic access for automation
-- **Export Capabilities**: Rule sets and logs in JSON/CSV formats
-- **Webhook Support**: Real-time notifications for security events
-- **SSO Integration**: JWT-based authentication with enterprise identity providers 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- 📖 **Documentation**: [DOCKER.md](DOCKER.md) for container setup
+- 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/ZeroPass-FirewallSimulator/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-username/ZeroPass-FirewallSimulator/discussions)
+
+---
+
+<div align="center">
+
+**Built with ❤️ for Enterprise Security Testing**
+
+[⭐ Star this repo](https://github.com/your-username/ZeroPass-FirewallSimulator) | [🍴 Fork it](https://github.com/your-username/ZeroPass-FirewallSimulator/fork) | [📖 Read the docs](DOCKER.md)
+
+</div> 
