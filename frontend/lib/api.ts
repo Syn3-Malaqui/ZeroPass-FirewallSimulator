@@ -1,25 +1,46 @@
 import axios from 'axios'
 import type { FirewallRuleSet, SimulationRequest, SimulationResult, EvaluationLog } from './store'
 
-// API client configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+// API client configuration - force HTTPS for production
+const getBackendUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Client-side: Check if we're on localhost or production
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (isLocalhost) {
+      return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+    }
+  }
+  // Always use production backend URL for deployed version
+  return process.env.NEXT_PUBLIC_BACKEND_URL || 'https://zeropass-backend.onrender.com'
+}
+
+const API_BASE_URL = getBackendUrl()
+
+// Debug logging
+console.log('🌐 API Configuration:')
+console.log('NEXT_PUBLIC_BACKEND_URL:', process.env.NEXT_PUBLIC_BACKEND_URL)
+console.log('API_BASE_URL:', API_BASE_URL)
+console.log('NODE_ENV:', process.env.NODE_ENV)
+console.log('Window location:', typeof window !== 'undefined' ? window.location.href : 'SSR')
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
-  timeout: 10000,
+  timeout: 15000, // Increased timeout for deployment
+  withCredentials: false, // Disable credentials for CORS
 })
 
 // Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
+    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
     return config
   },
   (error) => {
-    console.error('API Request Error:', error)
+    console.error('❌ API Request Error:', error)
     return Promise.reject(error)
   }
 )
@@ -27,18 +48,28 @@ apiClient.interceptors.request.use(
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`API Response: ${response.status} ${response.config.url}`)
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`)
     return response
   },
   (error) => {
-    console.error('API Response Error:', error)
+    console.error('❌ API Response Error:', error)
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers
+    })
+    
     if (error.response) {
       // Server responded with error status
       const message = error.response.data?.detail || error.response.data?.message || error.message
       throw new Error(`API Error (${error.response.status}): ${message}`)
     } else if (error.request) {
       // Request was made but no response received
-      throw new Error('Network Error: Unable to connect to the server')
+      console.error('No response received. Network or CORS issue likely.')
+      console.error('Request details:', error.request)
+      throw new Error('Network Error: Unable to connect to the server. Please check if the backend is running and CORS is configured correctly.')
     } else {
       // Something else happened
       throw new Error(`Request Error: ${error.message}`)

@@ -52,4 +52,4 @@ If you'd like to improve this documentation, please:
 
 ## License
 
-This documentation is provided under the same license as the ZeroPass Firewall Simulator project. 
+This documentation is provided under the same license as the ZeroPass Firewall Simulator project.

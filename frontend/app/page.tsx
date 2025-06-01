@@ -1,6 +1,7 @@
 import React from 'react'
 import { Header } from '@/components/layout/Header'
 import { Dashboard } from '@/components/Dashboard'
+import { DebugPanel } from '@/components/DebugPanel'
 
 export default function HomePage() {
   return (
@@ -9,6 +10,7 @@ export default function HomePage() {
       <main className="container mx-auto px-4 py-4 sm:py-8 max-w-7xl">
         <Dashboard />
       </main>
+      <DebugPanel />
     </div>
   )
 } 
