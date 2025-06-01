@@ -8,15 +8,21 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - CORS_ORIGINS=http://localhost:3000
-    volumes:
-      - ./backend:/app/backend
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - ENVIRONMENT=docker
+      - LOG_LEVEL=INFO
+    # volumes:
+      # Remove volume mounting in production for security
+      # - ./backend:/app/backend
     restart: unless-stopped
+    networks:
+      - zeropass-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   # Next.js Frontend
   frontend:
@@ -28,30 +34,63 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_BACKEND_URL=http://backend:8000
-    volumes:
-      - ./frontend:/app/frontend
+      - NODE_ENV=production
+    # volumes:
+      # Remove volume mounting in production for security
+      # - ./frontend:/app/frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - zeropass-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
 
-  # Optional: Redis for scalable rate limiting
+  # Optional: Redis for scalable rate limiting and session storage
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    networks:
+      - zeropass-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Optional: Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # - ./ssl:/etc/nginx/ssl:ro  # For HTTPS certificates
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    networks:
+      - zeropass-network
+    profiles:
+      - production  # Only run with: docker-compose --profile production up
 
 volumes:
   redis_data:
+    driver: local
 
 networks:
-  default:
-    name: zeropass-network 
+  zeropass-network:
+    driver: bridge 

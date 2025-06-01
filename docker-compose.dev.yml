@@ -1,0 +1,79 @@
+services:
+  # FastAPI Backend (Development)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    ports:
+      - "8000:8000"
+    environment:
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Mount source code for hot reloading in development
+      - ./backend:/app/backend
+      - /app/backend/__pycache__  # Exclude pycache
+    restart: unless-stopped
+    networks:
+      - zeropass-dev-network
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Next.js Frontend (Development)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true  # Enable polling for file changes
+    volumes:
+      # Mount source code for hot reloading in development
+      - ./frontend:/app
+      - /app/node_modules  # Exclude node_modules
+      - /app/.next  # Exclude .next build directory
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - zeropass-dev-network
+    stdin_open: true
+    tty: true
+
+  # Redis for development
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - zeropass-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  redis_dev_data:
+    driver: local
+
+networks:
+  zeropass-dev-network:
+    driver: bridge 

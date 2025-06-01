@@ -1,0 +1,24 @@
+# Development Dockerfile for ZeroPass Firewall Simulator
+FROM node:18-alpine AS frontend-dev
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    libc6-compat \
+    vips-dev
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install all dependencies (including devDependencies for development)
+RUN npm install
+
+# Copy source code
+COPY frontend/ ./
+
+# Expose port
+EXPOSE 3000
+
+# Start development server with hot reloading
+CMD ["npm", "run", "dev"] 
