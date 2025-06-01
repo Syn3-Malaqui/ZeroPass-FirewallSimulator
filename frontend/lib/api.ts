@@ -91,6 +91,81 @@ apiClient.interceptors.response.use(
   }
 )
 
+// Session-specific storage to prevent cross-session data leaks
+const SESSION_STORAGE_PREFIX = 'zeropass_session_'
+
+function getSessionStorageKey(key: string): string {
+  const userId = getCurrentUserId()
+  return `${SESSION_STORAGE_PREFIX}${userId}_${key}`
+}
+
+function setSessionData(key: string, data: any): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    const sessionKey = getSessionStorageKey(key)
+    sessionStorage.setItem(sessionKey, JSON.stringify({
+      data,
+      userId: getCurrentUserId(),
+      timestamp: Date.now()
+    }))
+  } catch (error) {
+    console.warn('Failed to store session data:', error)
+  }
+}
+
+function getSessionData(key: string): any | null {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    const sessionKey = getSessionStorageKey(key)
+    const stored = sessionStorage.getItem(sessionKey)
+    
+    if (!stored) return null
+    
+    const parsed = JSON.parse(stored)
+    
+    // Verify it belongs to current user
+    if (parsed.userId !== getCurrentUserId()) {
+      sessionStorage.removeItem(sessionKey)
+      return null
+    }
+    
+    // Check if data is fresh (30 seconds)
+    if (Date.now() - parsed.timestamp > 30000) {
+      sessionStorage.removeItem(sessionKey)
+      return null
+    }
+    
+    return parsed.data
+  } catch (error) {
+    console.warn('Failed to retrieve session data:', error)
+    return null
+  }
+}
+
+function clearSessionData(key?: string): void {
+  if (typeof window === 'undefined') return
+  
+  const userId = getCurrentUserId()
+  
+  if (key) {
+    // Clear specific key
+    const sessionKey = getSessionStorageKey(key)
+    sessionStorage.removeItem(sessionKey)
+  } else {
+    // Clear all session data for current user
+    const keysToRemove: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key && key.startsWith(`${SESSION_STORAGE_PREFIX}${userId}_`)) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => sessionStorage.removeItem(key))
+  }
+}
+
 // Client-side cache for user-isolated data
 const userCache = new Map<string, Map<string, any>>()
 
@@ -107,6 +182,13 @@ function getCacheKey(endpoint: string, params?: any): string {
 }
 
 function getFromCache(cacheKey: string): any | null {
+  // First try session storage (more persistent)
+  const sessionData = getSessionData(cacheKey)
+  if (sessionData) {
+    return sessionData
+  }
+  
+  // Then try memory cache
   const cache = getUserCache()
   const cached = cache.get(cacheKey)
   
@@ -118,6 +200,9 @@ function getFromCache(cacheKey: string): any | null {
 }
 
 function setCache(cacheKey: string, data: any): void {
+  // Store in both session storage and memory cache
+  setSessionData(cacheKey, data)
+  
   const cache = getUserCache()
   cache.set(cacheKey, {
     data,
@@ -128,12 +213,30 @@ function setCache(cacheKey: string, data: any): void {
 function clearUserCache(): void {
   const userId = getCurrentUserId()
   userCache.delete(userId)
+  clearSessionData() // Clear all session data for this user
 }
 
 // Clear cache on page refresh
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     clearUserCache()
+  })
+}
+
+// Aggressive filtering function to ensure no data leaks
+function aggressiveFilter<T extends { userId?: string }>(items: T[]): T[] {
+  const currentUserId = getCurrentUserId()
+  
+  return items.filter(item => {
+    // If item has no userId, it might be legacy data - assign it to current user
+    if (!item.userId) {
+      console.warn('Found item without userId, assigning to current user:', item)
+      item.userId = currentUserId
+      return true
+    }
+    
+    // Only return items that belong to current user
+    return item.userId === currentUserId
   })
 }
 
@@ -149,54 +252,76 @@ export const api = {
     return response.data
   },
 
-  // Rule Set Management - with user filtering
+  // Rule Set Management - with aggressive user filtering
   async getRuleSets(): Promise<FirewallRuleSet[]> {
     const cacheKey = getCacheKey('ruleSets')
     const cached = getFromCache(cacheKey)
     
     if (cached) {
       console.log('📦 Using cached rule sets')
-      return cached
+      return aggressiveFilter(cached)
     }
     
-    const response = await apiClient.get('/rules')
-    const allRuleSets = response.data
-    
-    // Filter by current user and add user ID to new rules
-    const userRuleSets = allRuleSets.map((rs: FirewallRuleSet) => {
-      if (!rs.userId) {
-        // Legacy rule set, assign to current user
-        return addUserIdToData(rs)
-      }
-      return rs
-    }).filter((rs: FirewallRuleSet) => rs.userId === getCurrentUserId())
-    
-    setCache(cacheKey, userRuleSets)
-    return userRuleSets
+    try {
+      const response = await apiClient.get('/rules')
+      const allRuleSets = response.data || []
+      
+      console.log(`📊 Backend returned ${allRuleSets.length} rule sets`)
+      
+      // Aggressively filter and assign user IDs
+      const userRuleSets = allRuleSets.map((rs: FirewallRuleSet) => {
+        if (!rs.userId) {
+          // Legacy rule set, assign to current user
+          return addUserIdToData(rs)
+        }
+        return rs
+      }).filter((rs: FirewallRuleSet) => rs.userId === getCurrentUserId())
+      
+      console.log(`🔒 Filtered to ${userRuleSets.length} user-specific rule sets`)
+      
+      setCache(cacheKey, userRuleSets)
+      return userRuleSets
+    } catch (error) {
+      console.error('Failed to fetch rule sets:', error)
+      // Return empty array on error to prevent showing other users' data
+      return []
+    }
   },
 
   async getRuleSet(id: string): Promise<FirewallRuleSet> {
-    const response = await apiClient.get(`/rules/${id}`)
-    const ruleSet = response.data
-    
-    // Verify ownership
-    if (ruleSet.userId && ruleSet.userId !== getCurrentUserId()) {
-      throw new Error('Access denied: This rule set belongs to another user')
+    try {
+      const response = await apiClient.get(`/rules/${id}`)
+      const ruleSet = response.data
+      
+      // Verify ownership
+      if (ruleSet.userId && ruleSet.userId !== getCurrentUserId()) {
+        throw new Error('Access denied: This rule set belongs to another user')
+      }
+      
+      if (!ruleSet.userId) {
+        // Legacy rule set, assign to current user
+        return addUserIdToData(ruleSet)
+      }
+      
+      return ruleSet
+    } catch (error) {
+      console.error('Failed to fetch rule set:', error)
+      throw error
     }
-    
-    if (!ruleSet.userId) {
-      // Legacy rule set, assign to current user
-      return addUserIdToData(ruleSet)
-    }
-    
-    return ruleSet
   },
 
   async createRuleSet(ruleSet: FirewallRuleSet): Promise<{ status: string; rule_set_id: string }> {
     const userRuleSet = addUserIdToData(ruleSet)
-    const response = await apiClient.post('/rules', userRuleSet)
-    clearUserCache() // Clear cache after mutation
-    return response.data
+    console.log('🔒 Creating rule set for user:', getCurrentUserId())
+    
+    try {
+      const response = await apiClient.post('/rules', userRuleSet)
+      clearUserCache() // Clear cache after mutation
+      return response.data
+    } catch (error) {
+      console.error('Failed to create rule set:', error)
+      throw error
+    }
   },
 
   async updateRuleSet(ruleSet: FirewallRuleSet): Promise<{ status: string; rule_set_id: string }> {
@@ -207,61 +332,105 @@ export const api = {
       throw new Error('Access denied: Cannot update another user\'s rule set')
     }
     
-    const response = await apiClient.post('/rules', userRuleSet)
-    clearUserCache() // Clear cache after mutation
-    return response.data
+    console.log('🔒 Updating rule set for user:', getCurrentUserId())
+    
+    try {
+      const response = await apiClient.post('/rules', userRuleSet)
+      clearUserCache() // Clear cache after mutation
+      return response.data
+    } catch (error) {
+      console.error('Failed to update rule set:', error)
+      throw error
+    }
   },
 
   async deleteRuleSet(id: string): Promise<{ status: string; message: string }> {
-    // Note: We can't verify ownership on delete without fetching first
-    // The backend should handle this, but we clear cache to be safe
-    const response = await apiClient.delete(`/rules/${id}`)
-    clearUserCache() // Clear cache after mutation
-    return response.data
+    console.log('🔒 Deleting rule set for user:', getCurrentUserId())
+    
+    try {
+      const response = await apiClient.delete(`/rules/${id}`)
+      clearUserCache() // Clear cache after mutation
+      return response.data
+    } catch (error) {
+      console.error('Failed to delete rule set:', error)
+      throw error
+    }
   },
 
   // Simulation - with user identification
   async simulate(request: SimulationRequest): Promise<SimulationResult> {
     const userRequest = addUserIdToData(request)
-    const response = await apiClient.post('/simulate', userRequest)
-    const result = response.data
+    console.log('🔒 Simulating request for user:', getCurrentUserId())
     
-    // Add user ID to result
-    return addUserIdToData(result)
+    try {
+      const response = await apiClient.post('/simulate', userRequest)
+      const result = response.data
+      
+      // Add user ID to result
+      return addUserIdToData(result)
+    } catch (error) {
+      console.error('Failed to simulate request:', error)
+      throw error
+    }
   },
 
-  // Logs - with user filtering
+  // Logs - with aggressive user filtering
   async getLogs(limit = 100): Promise<EvaluationLog[]> {
     const cacheKey = getCacheKey('logs', { limit })
     const cached = getFromCache(cacheKey)
     
     if (cached) {
       console.log('📦 Using cached logs')
-      return cached
+      return aggressiveFilter(cached)
     }
     
-    const response = await apiClient.get(`/logs?limit=${limit}`)
-    const allLogs = response.data
-    
-    // Filter by current user and add user ID to new logs
-    const userLogs = allLogs.map((log: EvaluationLog) => {
-      if (!log.userId) {
-        // Legacy log, assign to current user if it matches current session
-        return addUserIdToData(log)
-      }
-      return log
-    }).filter((log: EvaluationLog) => log.userId === getCurrentUserId())
-    
-    setCache(cacheKey, userLogs)
-    return userLogs
+    try {
+      const response = await apiClient.get(`/logs?limit=${limit}`)
+      const allLogs = response.data || []
+      
+      console.log(`📊 Backend returned ${allLogs.length} logs`)
+      
+      // Aggressively filter and assign user IDs
+      const userLogs = allLogs.map((log: EvaluationLog) => {
+        if (!log.userId) {
+          // Legacy log, assign to current user only if it's very recent (last 10 minutes)
+          const logTime = new Date(log.timestamp).getTime()
+          const now = Date.now()
+          if (now - logTime < 10 * 60 * 1000) { // 10 minutes
+            return addUserIdToData(log)
+          }
+          // Otherwise, don't assign it to any user (filter it out)
+          return null
+        }
+        return log
+      }).filter((log: EvaluationLog | null): log is EvaluationLog => 
+        log !== null && log.userId === getCurrentUserId()
+      )
+      
+      console.log(`🔒 Filtered to ${userLogs.length} user-specific logs`)
+      
+      setCache(cacheKey, userLogs)
+      return userLogs
+    } catch (error) {
+      console.error('Failed to fetch logs:', error)
+      // Return empty array on error to prevent showing other users' data
+      return []
+    }
   },
 
   async clearLogs(): Promise<{ status: string; message: string }> {
-    // Note: This will clear all logs on the backend
-    // In a real implementation, this should be user-specific
-    const response = await apiClient.delete('/logs')
-    clearUserCache() // Clear cache after mutation
-    return response.data
+    console.log('🔒 Clearing logs for user:', getCurrentUserId())
+    
+    try {
+      // Note: This will clear all logs on the backend
+      // In a real implementation, this should be user-specific
+      const response = await apiClient.delete('/logs')
+      clearUserCache() // Clear cache after mutation
+      return response.data
+    } catch (error) {
+      console.error('Failed to clear logs:', error)
+      throw error
+    }
   },
 }
 

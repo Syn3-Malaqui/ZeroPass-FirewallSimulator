@@ -1,8 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Activity, FileText, Menu, X } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Activity, FileText, Menu, X, User, Trash2, RefreshCw } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import { getCurrentUser, clearUserSession, clearAllCaches } from '@/lib/user'
+import { api } from '@/lib/api'
 import Image from 'next/image'
 
 interface HeaderProps {
@@ -11,14 +13,54 @@ interface HeaderProps {
 }
 
 export function Header({ debugMode, onToggleDebug }: HeaderProps) {
-  const { activeTab, setActiveTab } = useAppStore()
+  const { activeTab, setActiveTab, clearUserData } = useAppStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showSessionInfo, setShowSessionInfo] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
+  useEffect(() => {
+    // Get current user info
+    setCurrentUser(getCurrentUser())
+  }, [])
 
   const tabs = [
     { id: 'rules' as const, label: 'Rule Builder', icon: Activity },
     { id: 'simulator' as const, label: 'API Simulator', icon: Activity },
     { id: 'logs' as const, label: 'Evaluation Logs', icon: FileText },
   ]
+
+  const handleSessionClick = () => {
+    setShowSessionInfo(!showSessionInfo)
+  }
+
+  const handleClearSession = () => {
+    if (confirm('Clear your session? This will remove all your data and create a new session.')) {
+      // Clear all user data
+      clearUserSession()
+      clearAllCaches()
+      clearUserData()
+      api.clearCache()
+      
+      // Reload the page to reinitialize everything
+      window.location.reload()
+    }
+  }
+
+  const handleClearCache = () => {
+    if (confirm('Clear cache? This will refresh your data from the server.')) {
+      clearAllCaches()
+      api.clearCache()
+      window.location.reload()
+    }
+  }
+
+  const formatSessionId = (sessionId: string) => {
+    return sessionId.slice(-8) // Show last 8 characters
+  }
+
+  const formatUserId = (userId: string) => {
+    return userId.slice(-8) // Show last 8 characters
+  }
 
   return (
     <div className="sticky top-0 z-50 px-4 pt-4 transform scale-90 origin-top transition-all duration-300">
@@ -88,12 +130,83 @@ export function Header({ debugMode, onToggleDebug }: HeaderProps) {
               </button>
             </div>
 
-            {/* Desktop Status Indicator */}
-            <div className="hidden md:flex items-center space-x-3">
-              <div className="flex items-center space-x-2 bg-green-50/80 px-3 py-1.5 rounded-full border border-green-200/50">
+            {/* Desktop Status Indicator - Now Clickable */}
+            <div className="hidden md:flex items-center space-x-3 relative">
+              <button
+                onClick={handleSessionClick}
+                className="flex items-center space-x-2 bg-green-50/80 px-3 py-1.5 rounded-full border border-green-200/50 hover:bg-green-100 transition-all duration-200 transform hover:scale-105"
+                title="Click to view session info"
+              >
                 <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
-                <span className="text-xs font-medium text-green-700">Online</span>
-              </div>
+                <span className="text-xs font-medium text-green-700">
+                  Online {currentUser && `(${formatUserId(currentUser.id)})`}
+                </span>
+                <User className="h-3 w-3 text-green-600" />
+              </button>
+
+              {/* Session Info Dropdown */}
+              {showSessionInfo && (
+                <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-50 animate-slideDown">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-900">Session Info</h3>
+                      <button
+                        onClick={() => setShowSessionInfo(false)}
+                        className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                      >
+                        <X className="h-4 w-4 text-gray-500" />
+                      </button>
+                    </div>
+                    
+                    {currentUser && (
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">User ID:</span>
+                          <code className="text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
+                            {formatUserId(currentUser.id)}
+                          </code>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Session:</span>
+                          <code className="text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
+                            {formatSessionId(currentUser.sessionId)}
+                          </code>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Created:</span>
+                          <span className="text-gray-900 text-xs">
+                            {new Date(currentUser.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="border-t border-gray-200 pt-3 space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Your data is private to this session. Other users cannot see your rules or logs.
+                      </p>
+                      
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={handleClearCache}
+                          className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span>Clear Cache</span>
+                        </button>
+                        
+                        <button
+                          onClick={handleClearSession}
+                          className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-xs font-medium"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>New Session</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -125,12 +238,42 @@ export function Header({ debugMode, onToggleDebug }: HeaderProps) {
                     </button>
                   )
                 })}
-                {/* Mobile Status */}
-                <div className="flex items-center justify-center space-x-2 pt-3 border-t border-gray-200/30">
-                  <div className="flex items-center space-x-2 bg-green-50/80 px-3 py-1.5 rounded-full border border-green-200/50">
-                    <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
-                    <span className="text-xs font-medium text-green-700">Online</span>
-                  </div>
+                
+                {/* Mobile Session Info */}
+                <div className="pt-3 border-t border-gray-200/30">
+                  <button
+                    onClick={handleSessionClick}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-green-50/80 rounded-xl text-sm font-medium border border-green-200/50"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
+                      <span className="text-green-700">Session Active</span>
+                    </div>
+                    <User className="h-4 w-4 text-green-600" />
+                  </button>
+                  
+                  {showSessionInfo && currentUser && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
+                      <div className="text-xs text-gray-600">
+                        <div>User: {formatUserId(currentUser.id)}</div>
+                        <div>Session: {formatSessionId(currentUser.sessionId)}</div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={handleClearCache}
+                          className="flex-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                        >
+                          Clear Cache
+                        </button>
+                        <button
+                          onClick={handleClearSession}
+                          className="flex-1 px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium"
+                        >
+                          New Session
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </nav>
             </div>
