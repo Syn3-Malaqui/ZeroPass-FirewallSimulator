@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Primary Favicon Files -->
+  <link rel="icon" href="/favicon/favicon.ico" sizes="any">
+  <link rel="icon" href="/favicon/favicon.svg" type="image/svg+xml">
+  
+  <!-- Standard Favicon Sizes -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16x16.png">
+  
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/favicon/apple-touch-icon-precomposed.png">
+  
+  <!-- Android Chrome Icons (PWA) -->
+  <link rel="manifest" href="/favicon/site.webmanifest">
+  
+  <!-- Microsoft/Windows Tiles -->
+  <meta name="msapplication-config" content="/favicon/browserconfig.xml">
+  <meta name="msapplication-TileColor" content="#2563eb">
+  <meta name="msapplication-TileImage" content="/favicon/mstile-150x150.png">
+  
+  <!-- Theme Colors -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="msapplication-navbutton-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  
+  <!-- PWA Settings -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ZeroPass">
+  <meta name="application-name" content="ZeroPass">
+  
+  <title>ZeroPass Firewall Simulator</title>
+</head>
+<body>
+  <h1>ZeroPass Favicon Implementation Example</h1>
+  <p>This HTML demonstrates the proper implementation of all favicon files.</p>
+  
+  <h2>Copy this to your Next.js layout:</h2>
+  <pre><code>
+// app/layout.tsx or pages/_document.tsx
+
+export const metadata = {
+  icons: {
+    icon: [
+      { url: '/favicon/favicon.ico', sizes: 'any' },
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    other: [
+      { rel: 'mask-icon', url: '/favicon/safari-pinned-tab.svg', color: '#2563eb' },
+    ],
+  },
+  manifest: '/favicon/site.webmanifest',
+  themeColor: '#2563eb',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'ZeroPass',
+  },
+}
+  </code></pre>
+</body>
+</html> 

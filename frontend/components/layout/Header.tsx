@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Shield, Activity, FileText, Menu, X } from 'lucide-react'
+import { Activity, FileText, Menu, X } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import Image from 'next/image'
 
 interface HeaderProps {
   debugMode: boolean
@@ -14,7 +15,7 @@ export function Header({ debugMode, onToggleDebug }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const tabs = [
-    { id: 'rules' as const, label: 'Rule Builder', icon: Shield },
+    { id: 'rules' as const, label: 'Rule Builder', icon: Activity },
     { id: 'simulator' as const, label: 'API Simulator', icon: Activity },
     { id: 'logs' as const, label: 'Evaluation Logs', icon: FileText },
   ]
@@ -30,8 +31,15 @@ export function Header({ debugMode, onToggleDebug }: HeaderProps) {
               onClick={onToggleDebug}
               title="Click to toggle debug mode"
             >
-              <div className={`p-2.5 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-md transition-all duration-300 ${debugMode ? 'ring-2 ring-blue-300/50 ring-offset-2 ring-offset-white' : ''}`}>
-                <Shield className="h-5 w-5 text-white" />
+              <div className={`relative w-10 h-10 transition-all duration-300 ${debugMode ? 'ring-2 ring-blue-300/50 ring-offset-2 ring-offset-white rounded-xl' : ''}`}>
+                <Image
+                  src="/favicon/favicon.svg"
+                  alt="ZeroPass Logo"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-contain"
+                  priority
+                />
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">ZeroPass</h1>
