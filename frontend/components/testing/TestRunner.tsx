@@ -48,22 +48,12 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
     loadData()
   }, [])
 
-  // For mobile devices, ensure rule sets are fresh when the selection changes
-  useEffect(() => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
-    if (isMobile && selectedRuleSet) {
-      // Verify rule set exists in loaded rule sets
-      const ruleSetExists = localRuleSets.some(rs => rs.id === selectedRuleSet)
-      if (!ruleSetExists) {
-        console.log('Selected rule set not found in local rule sets, reloading...')
-        loadData()
-      }
-    }
-  }, [selectedRuleSet, localRuleSets])
-
   const loadData = async () => {
     try {
       setLoading(true)
+      
+      // Clear cache first to ensure fresh data
+      api.clearCache()
       
       // First load rule sets, then scenarios
       const fetchedRuleSets = await api.getRuleSets()
@@ -87,10 +77,12 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       
       // Clear selections if previously selected items don't exist anymore
       if (selectedRuleSet && !fetchedRuleSets.some(rs => rs.id === selectedRuleSet)) {
+        console.log('Previously selected rule set no longer exists, clearing selection')
         setSelectedRuleSet('')
       }
       
       if (selectedScenario && !fetchedScenarios.some(s => s.id === selectedScenario?.id)) {
+        console.log('Previously selected scenario no longer exists, clearing selection')
         setSelectedScenario(null)
       }
     } catch (error) {
@@ -99,6 +91,18 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       setLoading(false)
     }
   }
+
+  // Remove mobile-specific effects that may cause race conditions
+  useEffect(() => {
+    // Just verify rule set exists when selection changes, don't force reload
+    if (selectedRuleSet && localRuleSets.length > 0) {
+      const ruleSetExists = localRuleSets.some(rs => rs.id === selectedRuleSet)
+      if (!ruleSetExists) {
+        console.warn(`Selected rule set ${selectedRuleSet} not found in loaded rule sets`)
+        setSelectedRuleSet('')
+      }
+    }
+  }, [selectedRuleSet, localRuleSets])
 
   const filteredScenarios = selectedCategory === 'all' 
     ? scenarios 
@@ -118,21 +122,13 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       
       console.log(`Running test with scenario ${selectedScenario.id} and rule set ${selectedRuleSet}`)
       
-      // For mobile devices, add a small delay and reload rule sets to ensure they're fresh
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
-      if (isMobile) {
-        console.log('Mobile device detected, ensuring rule sets are fresh')
-        await new Promise(resolve => setTimeout(resolve, 300))
-        await loadData()
-      }
-      
-      // Make sure rule set exists before running test
-      const ruleSets = await api.getRuleSets()
-      console.log('Available rule sets:', ruleSets.map(rs => rs.id))
-      const ruleSetExists = ruleSets.some(rs => rs.id === selectedRuleSet)
+      // Verify rule set exists before running test (with fresh data)
+      console.log('🔍 Verifying rule set exists before testing...')
+      const freshRuleSets = await api.getRuleSets()
+      const ruleSetExists = freshRuleSets.some(rs => rs.id === selectedRuleSet)
       
       if (!ruleSetExists) {
-        throw new Error(`Rule set with ID ${selectedRuleSet} not found. Please select another rule set.`)
+        throw new Error(`Rule set with ID ${selectedRuleSet} not found. Please refresh the page and select another rule set.`)
       }
       
       const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
@@ -141,12 +137,19 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       addTestResult(result)
     } catch (error: any) {
       console.error('Failed to run test:', error)
-      alert(`Test failed: ${error.message || 'Unknown error'}`)
       
-      // If rule set not found, reload data
-      if (error.message && error.message.includes('Rule set not found')) {
+      let errorMessage = error.message || 'Unknown error'
+      
+      // Handle specific error cases
+      if (errorMessage.includes('Rule set not found') || errorMessage.includes('404')) {
+        errorMessage = `Rule set not found. This might be due to a session issue. Please refresh the page and try again.`
+        // Clear selection to prevent repeated failures
+        setSelectedRuleSet('')
+        // Reload data
         await loadData()
       }
+      
+      alert(`Test failed: ${errorMessage}`)
     } finally {
       setIsRunning(false)
     }
@@ -300,22 +303,12 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
                 ))}
               </select>
               <button 
-                onClick={async () => {
-                  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-                  if (isMobile) {
-                    // On mobile, add a small delay for better UX
-                    setLoading(true);
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    await loadData();
-                    setLoading(false);
-                  } else {
-                    loadData();
-                  }
-                }}
-                className="px-3 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors"
+                onClick={loadData}
+                disabled={loading}
+                className="px-3 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors disabled:opacity-50"
                 title="Reload rule sets"
               >
-                <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
+                <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
             {localRuleSets.length === 0 && (

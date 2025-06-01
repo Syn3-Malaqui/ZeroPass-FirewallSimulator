@@ -39,81 +39,138 @@ const getBackendUrl = () => {
   return cachedBackendUrl;
 };
 
-const API_BASE_URL = getBackendUrl()
+// Log API configuration
+if (typeof window !== 'undefined') {
+  console.log('🌐 API Configuration:')
+  console.log('NEXT_PUBLIC_BACKEND_URL:', process.env.NEXT_PUBLIC_BACKEND_URL)
+  console.log('API_BASE_URL:', getBackendUrl())
+  console.log('NODE_ENV:', process.env.NODE_ENV)
+  console.log('Window location:', typeof window !== 'undefined' ? window.location.hostname : 'SSR')
+}
 
-// Debug logging
-console.log('🌐 API Configuration:')
-console.log('NEXT_PUBLIC_BACKEND_URL:', process.env.NEXT_PUBLIC_BACKEND_URL)
-console.log('API_BASE_URL:', API_BASE_URL)
-console.log('NODE_ENV:', process.env.NODE_ENV)
-console.log('Window location:', typeof window !== 'undefined' ? window.location.href : 'SSR')
-
+// Create axios instance with user isolation
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getBackendUrl(),
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
   },
-  timeout: 20000, // Increased timeout for Render cold starts
-  withCredentials: false, // Disable credentials for CORS
 })
 
-// Request interceptor for logging and adding user identification
-apiClient.interceptors.request.use(
-  (config) => {
-    // Add user identification to headers
-    const userId = getCurrentUserId()
-    if (userId) {
-      config.headers['X-User-ID'] = userId
-    }
-    
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
-    console.log(`👤 User ID: ${userId}`)
-    return config
-  },
+// Add request interceptor to include user ID
+apiClient.interceptors.request.use((config) => {
+  config.headers['X-User-ID'] = getCurrentUserId()
+  return config
+})
+
+// Add response interceptor for better error handling
+apiClient.interceptors.response.use(
+  (response) => response,
   (error) => {
-    console.error('❌ API Request Error:', error)
+    if (error.response?.status === 404 && error.response?.data?.detail?.includes('Rule set not found')) {
+      console.error('🚫 Rule set not found - this may be due to session issues')
+      // Clear relevant caches when rule set is not found
+      clearUserCache()
+    }
     return Promise.reject(error)
   }
 )
 
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => {
-    console.log(`✅ API Response: ${response.status} ${response.config.url}`)
-    return response
-  },
-  (error) => {
-    console.error('❌ API Response Error:', error)
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      response: error.response?.data,
-      status: error.response?.status,
-      headers: error.response?.headers
-    })
+export class APIError extends Error {
+  status?: number
+  
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'APIError'
+    this.status = status
+  }
+}
+
+export function handleAPIError(error: any): string {
+  if (error instanceof APIError) {
+    return error.message
+  }
+  
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 404) {
+      return `Resource not found. ${error.response?.data?.detail || 'Please refresh and try again.'}`
+    }
     
-    if (error.response) {
-      // Server responded with error status
-      const message = error.response.data?.detail || error.response.data?.message || error.message
-      throw new Error(`API Error (${error.response.status}): ${message}`)
-    } else if (error.request) {
-      // Request was made but no response received
-      console.error('No response received. Network or CORS issue likely.')
-      console.error('Request details:', error.request)
-      
-      // Check if it's a timeout
-      if (error.code === 'ECONNABORTED') {
-        throw new Error('Request timeout: The server took too long to respond. This may be due to a cold start on Render.')
-      }
-      
-      throw new Error('Network Error: Unable to connect to the server. The backend may be starting up (cold start).')
-    } else {
-      // Something else happened
-      throw new Error(`Request Error: ${error.message}`)
+    if (error.response && error.response.status >= 500) {
+      return `Server error: ${error.response?.data?.detail || error.message}`
+    }
+    
+    if (error.response?.data?.detail) {
+      return error.response.data.detail
     }
   }
-)
+  
+  return error.message || 'An unexpected error occurred'
+}
+
+// Improved caching with better invalidation
+const CACHE_DURATION = 30000 // 30 seconds - shorter for better consistency
+const userCache = new Map<string, Map<string, { data: any, timestamp: number }>>()
+
+function getUserCache() {
+  const userId = getCurrentUserId()
+  if (!userCache.has(userId)) {
+    userCache.set(userId, new Map())
+  }
+  return userCache.get(userId)!
+}
+
+function getCacheKey(key: string): string {
+  return `${key}_${getCurrentUserId()}`
+}
+
+function getFromCache(key: string): any | null {
+  const cache = getUserCache()
+  const cached = cache.get(key)
+  
+  if (!cached) return null
+  
+  // Check if cache is expired
+  if (Date.now() - cached.timestamp > CACHE_DURATION) {
+    cache.delete(key)
+    return null
+  }
+  
+  return cached.data
+}
+
+function setCache(key: string, data: any): void {
+  const cache = getUserCache()
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  })
+}
+
+function clearUserCache(): void {
+  const userId = getCurrentUserId()
+  userCache.delete(userId)
+  clearSessionData() // Clear all session data for this user
+}
+
+function invalidateCache(pattern?: string): void {
+  const cache = getUserCache()
+  if (pattern) {
+    // Clear specific pattern using Array.from to handle iterators properly
+    const keys = Array.from(cache.keys())
+    keys.forEach(key => {
+      if (key.includes(pattern)) {
+        cache.delete(key)
+      }
+    })
+  } else {
+    // Clear all cache
+    cache.clear()
+  }
+  
+  // Also clear session storage
+  clearSessionData()
+}
 
 // Session-specific storage to prevent cross-session data leaks
 const SESSION_STORAGE_PREFIX = 'zeropass_session_'
@@ -155,8 +212,8 @@ function getSessionData(key: string): any | null {
       return null
     }
     
-    // Check if data is fresh (30 seconds)
-    if (Date.now() - parsed.timestamp > 30000) {
+    // Check if data is fresh (shorter duration for better consistency)
+    if (Date.now() - parsed.timestamp > 15000) { // 15 seconds
       sessionStorage.removeItem(sessionKey)
       return null
     }
@@ -190,93 +247,19 @@ function clearSessionData(key?: string): void {
   }
 }
 
-// Client-side cache for user-isolated data
-const userCache = new Map<string, Map<string, any>>()
-
-function getUserCache() {
-  const userId = getCurrentUserId()
-  if (!userCache.has(userId)) {
-    userCache.set(userId, new Map())
-  }
-  return userCache.get(userId)!
-}
-
-function getCacheKey(endpoint: string, params?: any): string {
-  return `${endpoint}_${JSON.stringify(params || {})}`
-}
-
-function getFromCache(cacheKey: string): any | null {
-  // First try session storage (more persistent)
-  const sessionData = getSessionData(cacheKey)
-  if (sessionData) {
-    return sessionData
-  }
-  
-  // Then try memory cache
-  const cache = getUserCache()
-  const cached = cache.get(cacheKey)
-  
-  if (cached && cached.timestamp && Date.now() - cached.timestamp < 30000) { // 30 second cache
-    return cached.data
-  }
-  
-  return null
-}
-
-function setCache(cacheKey: string, data: any): void {
-  // Store in both session storage and memory cache
-  setSessionData(cacheKey, data)
-  
-  const cache = getUserCache()
-  cache.set(cacheKey, {
-    data,
-    timestamp: Date.now()
-  })
-}
-
-function clearUserCache(): void {
-  const userId = getCurrentUserId()
-  userCache.delete(userId)
-  clearSessionData() // Clear all session data for this user
-}
-
-// Clear cache on page refresh
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => {
-    clearUserCache()
-  })
-}
-
-// Aggressive filtering function to ensure no data leaks
-function aggressiveFilter<T extends { userId?: string }>(items: T[]): T[] {
-  const currentUserId = getCurrentUserId()
-  
-  return items.filter(item => {
-    // If item has no userId, it might be legacy data - assign it to current user
-    if (!item.userId) {
-      console.warn('Found item without userId, assigning to current user:', item)
-      item.userId = currentUserId
-      return true
-    }
-    
-    // Only return items that belong to current user
-    return item.userId === currentUserId
-  })
-}
-
 export const api = {
   // Clear user cache manually
   clearCache: () => {
     clearUserCache()
+    invalidateCache()
   },
 
-  // Health check
-  async health() {
-    const response = await apiClient.get('/health')
-    return response.data
+  // Clear specific cache patterns
+  clearCachePattern: (pattern: string) => {
+    invalidateCache(pattern)
   },
 
-  // Rule Set Management - with aggressive user filtering
+  // Rule Set Management - with improved caching and error handling
   async getRuleSets(): Promise<FirewallRuleSet[]> {
     const cacheKey = getCacheKey('rules')
     const cached = getFromCache(cacheKey)
@@ -397,116 +380,49 @@ export const api = {
     }
   },
 
-  // Logs - with aggressive user filtering
-  async getLogs(limit = 100): Promise<EvaluationLog[]> {
-    const cacheKey = getCacheKey('logs', { limit })
-    const cached = getFromCache(cacheKey)
-    
-    if (cached) {
-      console.log('📦 Using cached logs')
-      return aggressiveFilter(cached)
-    }
-    
-    try {
-      const response = await apiClient.get(`/logs?limit=${limit}`)
-      const allLogs = response.data || []
-      
-      console.log(`📊 Backend returned ${allLogs.length} logs`)
-      
-      // Aggressively filter and assign user IDs
-      const userLogs = allLogs.map((log: EvaluationLog) => {
-        if (!log.userId) {
-          // Legacy log, assign to current user only if it's very recent (last 10 minutes)
-          const logTime = new Date(log.timestamp).getTime()
-          const now = Date.now()
-          if (now - logTime < 10 * 60 * 1000) { // 10 minutes
-            return addUserIdToData(log)
-          }
-          // Otherwise, don't assign it to any user (filter it out)
-          return null
-        }
-        return log
-      }).filter((log: EvaluationLog | null): log is EvaluationLog => 
-        log !== null && log.userId === getCurrentUserId()
-      )
-      
-      console.log(`🔒 Filtered to ${userLogs.length} user-specific logs`)
-      
-      setCache(cacheKey, userLogs)
-      return userLogs
-    } catch (error) {
-      console.error('Failed to fetch logs:', error)
-      // Return empty array on error to prevent showing other users' data
-      return []
-    }
-  },
-
-  async clearLogs(): Promise<{ status: string; message: string }> {
-    console.log('🔒 Clearing logs for user:', getCurrentUserId())
-    
-    try {
-      // Note: This will clear all logs on the backend
-      // In a real implementation, this should be user-specific
-      const response = await apiClient.delete('/logs')
-      clearUserCache() // Clear cache after mutation
-      return response.data
-    } catch (error) {
-      console.error('Failed to clear logs:', error)
-      throw error
-    }
-  },
-
-  // Template Management
-  async getTemplates(category?: string): Promise<RuleTemplate[]> {
-    const cacheKey = getCacheKey('templates', { category })
+  // Evaluation logs
+  async getEvaluationLogs(): Promise<EvaluationLog[]> {
+    const cacheKey = getCacheKey('logs')
     const cached = getFromCache(cacheKey)
     if (cached) return cached
 
     try {
-      console.log(`Fetching templates from ${getBackendUrl()}/templates${category ? `?category=${category}` : ''}`)
-      const response = await fetch(`${getBackendUrl()}/templates${category ? `?category=${category}` : ''}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'X-User-ID': getCurrentUserId()
-        }
-      })
+      const response = await apiClient.get('/logs')
+      const logs = response.data
+      
+      setCache(cacheKey, logs)
+      return logs
+    } catch (error) {
+      console.error('Failed to fetch evaluation logs:', error)
+      throw error
+    }
+  },
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`Failed to load templates: ${response.statusText}`, response.status)
-      }
+  async clearEvaluationLogs(): Promise<{ status: string; message: string }> {
+    try {
+      const response = await apiClient.delete('/logs')
+      clearUserCache() // Clear cache after mutation
+      return response.data
+    } catch (error) {
+      console.error('Failed to clear evaluation logs:', error)
+      throw error
+    }
+  },
 
-      const templates = await response.json()
-      console.log(`Successfully fetched ${templates.length} templates from API`)
+  // Templates
+  async getTemplates(): Promise<RuleTemplate[]> {
+    const cacheKey = getCacheKey('templates')
+    const cached = getFromCache(cacheKey)
+    if (cached) return cached
+
+    try {
+      const response = await apiClient.get('/templates')
+      const templates = response.data
       
       setCache(cacheKey, templates)
       return templates
     } catch (error) {
-      console.error('Template fetch error:', error)
-      throw error instanceof APIError 
-        ? error 
-        : new APIError(`Failed to load templates: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  },
-
-  async getTemplate(id: string): Promise<RuleTemplate> {
-    try {
-      const cacheKey = getCacheKey('template', { id })
-      const cached = getFromCache(cacheKey)
-      if (cached) {
-        console.log(`📋 Using cached template data for ${id}`)
-        return cached
-      }
-
-      console.log(`🔍 Fetching template ${id} from API...`)
-      const response = await apiClient.get(`/templates/${id}`)
-      
-      setCache(cacheKey, response.data)
-      return response.data
-    } catch (error) {
-      console.error(`❌ Error fetching template ${id}:`, error)
+      console.error('Failed to fetch templates:', error)
       throw error
     }
   },
@@ -545,44 +461,20 @@ export const api = {
     }
   },
 
-  // Exploit Scenarios
-  async getScenarios(category?: string): Promise<ExploitScenario[]> {
+  // Scenarios
+  async getScenarios(): Promise<ExploitScenario[]> {
+    const cacheKey = getCacheKey('scenarios')
+    const cached = getFromCache(cacheKey)
+    if (cached) return cached
+
     try {
-      const cacheKey = getCacheKey('scenarios', { category })
-      const cached = getFromCache(cacheKey)
-      if (cached) {
-        console.log('🎯 Using cached scenarios data')
-        return cached
-      }
-
-      console.log('🔍 Fetching scenarios from API...')
-      const params = category ? { category } : {}
-      const response = await apiClient.get('/scenarios', { params })
+      const response = await apiClient.get('/scenarios')
+      const scenarios = response.data
       
-      setCache(cacheKey, response.data)
-      return response.data
+      setCache(cacheKey, scenarios)
+      return scenarios
     } catch (error) {
-      console.error('❌ Error fetching scenarios:', error)
-      throw error
-    }
-  },
-
-  async getScenario(id: string): Promise<ExploitScenario> {
-    try {
-      const cacheKey = getCacheKey('scenario', { id })
-      const cached = getFromCache(cacheKey)
-      if (cached) {
-        console.log(`🎯 Using cached scenario data for ${id}`)
-        return cached
-      }
-
-      console.log(`🔍 Fetching scenario ${id} from API...`)
-      const response = await apiClient.get(`/scenarios/${id}`)
-      
-      setCache(cacheKey, response.data)
-      return response.data
-    } catch (error) {
-      console.error(`❌ Error fetching scenario ${id}:`, error)
+      console.error('Failed to fetch scenarios:', error)
       throw error
     }
   },
@@ -590,6 +482,23 @@ export const api = {
   async testScenario(scenarioId: string, ruleSetId: string): Promise<ScenarioTestResult> {
     try {
       console.log(`Testing scenario ${scenarioId} with rule set ${ruleSetId}`)
+      
+      // First verify rule set exists with fresh data
+      console.log('🔍 Verifying rule set exists before testing...')
+      const ruleSets = await this.getRuleSets()
+      const ruleSetExists = ruleSets.some(rs => rs.id === ruleSetId)
+      
+      if (!ruleSetExists) {
+        // Clear cache and try one more time
+        console.log('🔄 Rule set not found in cache, clearing cache and retrying...')
+        clearUserCache()
+        const freshRuleSets = await this.getRuleSets()
+        const stillExists = freshRuleSets.some(rs => rs.id === ruleSetId)
+        
+        if (!stillExists) {
+          throw new APIError(`Rule set "${ruleSetId}" not found. Please refresh the page and try again.`, 404)
+        }
+      }
       
       const response = await fetch(`${getBackendUrl()}/scenarios/${scenarioId}/test?rule_set_id=${encodeURIComponent(ruleSetId)}`, {
         method: 'POST',
@@ -603,7 +512,12 @@ export const api = {
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`API Error (${response.status}): ${response.statusText}. Try reloading rule sets.`, response.status)
+        
+        if (response.status === 404 && errorText.includes('Rule set not found')) {
+          throw new APIError(`Rule set not found. Please refresh the page and try again.`, 404)
+        }
+        
+        throw new APIError(`API Error (${response.status}): ${response.statusText}`, response.status)
       }
       
       const result = await response.json()
@@ -612,29 +526,20 @@ export const api = {
       console.error('Test scenario error:', error)
       throw error instanceof APIError 
         ? error 
-        : new APIError(`Test error: ${error instanceof Error ? error.message : 'Unknown error'}. Try reloading rule sets.`)
+        : new APIError(`Test error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 }
 
-// Utility functions for validation
-export const validateCIDR = (cidr: string): boolean => {
-  const cidrRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|[12][0-9]|3[0-2])$/
-  return cidrRegex.test(cidr)
-}
-
+// Utility functions
 export const validateIP = (ip: string): boolean => {
   const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
   return ipRegex.test(ip)
 }
 
-export const validateJWT = (token: string): boolean => {
-  try {
-    const parts = token.split('.')
-    return parts.length === 3
-  } catch {
-    return false
-  }
+export const validateCIDR = (cidr: string): boolean => {
+  const cidrRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|[1-2][0-9]|3[0-2])$/
+  return cidrRegex.test(cidr)
 }
 
 export const generateJWTToken = (claims: Record<string, any> = {}): string => {
@@ -652,46 +557,4 @@ export const generateJWTToken = (claims: Record<string, any> = {}): string => {
   const base64Payload = btoa(JSON.stringify(payload))
   
   return `${base64Header}.${base64Payload}.fake-signature`
-}
-
-export const parseJWT = (token: string): Record<string, any> | null => {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    
-    const payload = JSON.parse(atob(parts[1]))
-    return payload
-  } catch {
-    return null
-  }
-}
-
-// Error handling utilities
-export class APIError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public code?: string
-  ) {
-    super(message)
-    this.name = 'APIError'
-  }
-}
-
-export const handleAPIError = (error: any): string => {
-  if (error instanceof APIError) {
-    return error.message
-  }
-  
-  if (axios.isAxiosError(error)) {
-    if (error.response?.data?.detail) {
-      return error.response.data.detail
-    }
-    if (error.response?.data?.message) {
-      return error.response.data.message
-    }
-    return error.message
-  }
-  
-  return error.message || 'An unexpected error occurred'
 } 

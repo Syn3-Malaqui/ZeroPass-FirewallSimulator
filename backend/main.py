@@ -999,6 +999,10 @@ async def test_exploit_scenario(scenario_id: str, rule_set_id: str, x_user_id: O
         user_id = get_user_id(x_user_id)
         logger.info(f"🔒 Testing scenario {scenario_id} against rule set {rule_set_id} for user: {user_id}")
         
+        # Debug: Log all available rule sets for this user
+        user_rule_sets = [rs_id for rs_id, rs_data in rule_sets.items() if rs_data.get('userId') == user_id]
+        logger.info(f"📊 Available rule sets for user {user_id}: {user_rule_sets}")
+        
         # Validate scenario exists and access
         if scenario_id not in exploit_scenarios:
             raise HTTPException(status_code=404, detail="Scenario not found")
@@ -1009,11 +1013,13 @@ async def test_exploit_scenario(scenario_id: str, rule_set_id: str, x_user_id: O
         
         # Validate rule set exists and belongs to user
         if rule_set_id not in rule_sets:
+            logger.error(f"❌ Rule set {rule_set_id} not found in rule_sets. Available: {list(rule_sets.keys())}")
             raise HTTPException(status_code=404, detail="Rule set not found")
         
         stored_rule_set = rule_sets[rule_set_id]
         if stored_rule_set.get('userId') != user_id:
-            raise HTTPException(status_code=403, detail="Access denied to this rule set")
+            logger.error(f"❌ Rule set {rule_set_id} belongs to user {stored_rule_set.get('userId')}, not {user_id}")
+            raise HTTPException(status_code=404, detail="Rule set not found")
         
         # Convert stored rule set back to model
         rule_set = FirewallRuleSet(**stored_rule_set)
