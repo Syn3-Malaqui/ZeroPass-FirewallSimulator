@@ -46,64 +46,42 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
 
   useEffect(() => {
     loadData()
-    
-    // Set up interval to periodically refresh rule sets
-    const intervalId = setInterval(() => {
-      console.log('Automatic refresh of rule sets')
-      loadData()
-    }, 30000) // Refresh every 30 seconds
-    
-    return () => clearInterval(intervalId)
-  }, [])
-  
-  // Force reload when the component becomes visible
-  useEffect(() => {
-    const visibilityHandler = () => {
-      if (!document.hidden) {
-        console.log('TestRunner became visible, refreshing data')
-        loadData()
-      }
-    }
-    
-    document.addEventListener('visibilitychange', visibilityHandler)
-    return () => document.removeEventListener('visibilitychange', visibilityHandler)
   }, [])
 
   const loadData = async () => {
     try {
       setLoading(true)
       
-      // Clear cache first to ensure fresh data
-      api.clearCache()
+      // First load rule sets, then scenarios
+      const fetchedRuleSets = await api.getRuleSets()
+      console.log('Loaded rule sets:', {
+        count: fetchedRuleSets.length,
+        ids: fetchedRuleSets.map(rs => rs.id)
+      })
       
-      const [fetchedScenarios, fetchedRuleSets] = await Promise.all([
-        api.getScenarios(),
-        api.getRuleSets()
-      ])
+      if (fetchedRuleSets.length === 0) {
+        console.warn('No rule sets found - user may need to create rule sets first')
+      }
       
-      console.log('Loaded data:', {
-        scenarios: fetchedScenarios.length,
-        ruleSets: fetchedRuleSets.length,
-        ruleSetIds: fetchedRuleSets.map(rs => rs.id)
+      const fetchedScenarios = await api.getScenarios()
+      console.log('Loaded scenarios:', {
+        count: fetchedScenarios.length
       })
       
       setScenarios(fetchedScenarios)
       setLocalScenarios(fetchedScenarios)
       setLocalRuleSets(fetchedRuleSets)
       
-      // Reset selections if they no longer exist
+      // Clear selections if previously selected items don't exist anymore
       if (selectedRuleSet && !fetchedRuleSets.some(rs => rs.id === selectedRuleSet)) {
-        console.log(`Selected rule set ${selectedRuleSet} no longer exists, resetting selection`)
         setSelectedRuleSet('')
       }
       
-      if (selectedScenario && !fetchedScenarios.some(s => s.id === selectedScenario.id)) {
-        console.log(`Selected scenario no longer exists, resetting selection`)
+      if (selectedScenario && !fetchedScenarios.some(s => s.id === selectedScenario?.id)) {
         setSelectedScenario(null)
       }
     } catch (error) {
       console.error('Failed to load data:', error)
-      alert('Failed to load testing data. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -116,27 +94,37 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
   const categories = ['all', ...Array.from(new Set(scenarios.map(s => s.category)))]
 
   const runTest = async () => {
-    if (!selectedScenario || !selectedRuleSet) return
+    if (!selectedScenario || !selectedRuleSet) {
+      console.error('Missing scenario or rule set selection')
+      return
+    }
 
     try {
       setIsRunning(true)
       setTestResult(null)
       
-      console.log(`Running test for scenario: ${selectedScenario.id}, rule set: ${selectedRuleSet}`)
-      console.log('Available rule sets:', localRuleSets.map(rs => ({id: rs.id, name: rs.name})))
+      console.log(`Running test with scenario ${selectedScenario.id} and rule set ${selectedRuleSet}`)
       
-      // Verify the rule set exists before testing
-      const ruleSetExists = localRuleSets.some(rs => rs.id === selectedRuleSet)
+      // Make sure rule set exists before running test
+      const ruleSets = await api.getRuleSets()
+      const ruleSetExists = ruleSets.some(rs => rs.id === selectedRuleSet)
+      
       if (!ruleSetExists) {
-        throw new Error(`Rule set ${selectedRuleSet} not found. Please reload the rule sets.`)
+        throw new Error(`Rule set with ID ${selectedRuleSet} not found. Please select another rule set.`)
       }
       
       const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
+      console.log('Test result:', result)
       setTestResult(result)
       addTestResult(result)
     } catch (error: any) {
       console.error('Failed to run test:', error)
-      alert(`Test error: ${error.message || 'Unknown error'}. Try reloading rule sets.`)
+      alert(`Test failed: ${error.message || 'Unknown error'}`)
+      
+      // If rule set not found, reload data
+      if (error.message && error.message.includes('Rule set not found')) {
+        await loadData()
+      }
     } finally {
       setIsRunning(false)
     }
@@ -279,28 +267,18 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
             <div className="flex space-x-2">
               <select
                 value={selectedRuleSet}
-                onChange={(e) => {
-                  console.log(`Rule set selected: ${e.target.value}`)
-                  setSelectedRuleSet(e.target.value)
-                }}
+                onChange={(e) => setSelectedRuleSet(e.target.value)}
                 className="flex-1 px-3 py-2 sm:py-2.5 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Choose a rule set to test...</option>
-                {localRuleSets.length > 0 ? (
-                  localRuleSets.map((ruleSet) => (
-                    <option key={ruleSet.id} value={ruleSet.id}>
-                      {ruleSet.name} ({ruleSet.id.substring(0, 8)})
-                    </option>
-                  ))
-                ) : (
-                  <option value="" disabled>No rule sets available</option>
-                )}
+                {localRuleSets.map((ruleSet) => (
+                  <option key={ruleSet.id} value={ruleSet.id}>
+                    {ruleSet.name}
+                  </option>
+                ))}
               </select>
               <button 
-                onClick={() => {
-                  api.clearCache() // Force clear cache
-                  loadData()
-                }}
+                onClick={loadData}
                 className="px-3 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors"
                 title="Reload rule sets"
               >
@@ -442,5 +420,3 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
     </div>
   )
 }) 
-
-TestRunner.displayName = 'TestRunner'

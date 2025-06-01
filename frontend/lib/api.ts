@@ -268,7 +268,6 @@ export const api = {
 
     try {
       console.log(`Fetching rule sets from ${getBackendUrl()}/rules`)
-      
       const response = await fetch(`${getBackendUrl()}/rules`, {
         method: 'GET',
         headers: {
@@ -276,22 +275,18 @@ export const api = {
           'X-User-ID': getCurrentUserId()
         }
       })
-      
+
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`API Error (${response.status}):`, errorText)
         throw new APIError(`Failed to load rule sets: ${response.statusText}`, response.status)
       }
-      
+
       const ruleSets = await response.json()
-      console.log(`Successfully fetched ${ruleSets.length} rule sets from API`)
+      console.log(`Successfully fetched ${ruleSets.length} rule sets`)
       
-      // Filter out any rule sets that don't belong to current user
-      const filteredRuleSets = aggressiveFilter<FirewallRuleSet>(ruleSets)
-      console.log(`After filtering: ${filteredRuleSets.length} rule sets remain`)
-      
-      setCache(cacheKey, filteredRuleSets)
-      return filteredRuleSets
+      setCache(cacheKey, ruleSets)
+      return ruleSets
     } catch (error) {
       console.error('Rule sets fetch error:', error)
       throw error instanceof APIError 
@@ -302,141 +297,70 @@ export const api = {
 
   async getRuleSet(id: string): Promise<FirewallRuleSet> {
     try {
-      console.log(`Fetching rule set ${id} from ${getBackendUrl()}/rules/${id}`)
+      const response = await apiClient.get(`/rules/${id}`)
+      const ruleSet = response.data
       
-      const response = await fetch(`${getBackendUrl()}/rules/${id}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'X-User-ID': getCurrentUserId()
-        }
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`Failed to load rule set: ${response.statusText}`, response.status)
+      // Verify ownership
+      if (ruleSet.userId && ruleSet.userId !== getCurrentUserId()) {
+        throw new Error('Access denied: This rule set belongs to another user')
       }
       
-      const ruleSet = await response.json()
+      if (!ruleSet.userId) {
+        // Legacy rule set, assign to current user
+        return addUserIdToData(ruleSet)
+      }
+      
       return ruleSet
     } catch (error) {
-      console.error('Rule set fetch error:', error)
-      throw error instanceof APIError 
-        ? error 
-        : new APIError(`Failed to load rule set: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Failed to fetch rule set:', error)
+      throw error
     }
   },
 
   async createRuleSet(ruleSet: FirewallRuleSet): Promise<{ status: string; rule_set_id: string }> {
+    const userRuleSet = addUserIdToData(ruleSet)
+    console.log('🔒 Creating rule set for user:', getCurrentUserId())
+    
     try {
-      console.log(`Creating rule set ${ruleSet.id}`)
-      
-      // Add current user ID to rule set
-      const ruleSetWithUser = {
-        ...ruleSet,
-        userId: getCurrentUserId()
-      }
-      
-      const response = await fetch(`${getBackendUrl()}/rules`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-User-ID': getCurrentUserId()
-        },
-        body: JSON.stringify(ruleSetWithUser)
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`Failed to create rule set: ${response.statusText}`, response.status)
-      }
-      
-      const result = await response.json()
-      
-      // Clear cache to force refresh
-      clearSessionData('rules')
-      
-      return result
+      const response = await apiClient.post('/rules', userRuleSet)
+      clearUserCache() // Clear cache after mutation
+      return response.data
     } catch (error) {
-      console.error('Rule set creation error:', error)
-      throw error instanceof APIError 
-        ? error 
-        : new APIError(`Failed to create rule set: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Failed to create rule set:', error)
+      throw error
     }
   },
 
   async updateRuleSet(ruleSet: FirewallRuleSet): Promise<{ status: string; rule_set_id: string }> {
+    const userRuleSet = addUserIdToData(ruleSet)
+    
+    // Verify ownership before update
+    if (ruleSet.userId && ruleSet.userId !== getCurrentUserId()) {
+      throw new Error('Access denied: Cannot update another user\'s rule set')
+    }
+    
+    console.log('🔒 Updating rule set for user:', getCurrentUserId())
+    
     try {
-      console.log(`Updating rule set ${ruleSet.id}`)
-      
-      // Add current user ID to rule set if missing
-      const ruleSetWithUser = {
-        ...ruleSet,
-        userId: ruleSet.userId || getCurrentUserId()
-      }
-      
-      const response = await fetch(`${getBackendUrl()}/rules`, {
-        method: 'POST',  // The API uses POST for both create and update
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-User-ID': getCurrentUserId()
-        },
-        body: JSON.stringify(ruleSetWithUser)
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`Failed to update rule set: ${response.statusText}`, response.status)
-      }
-      
-      const result = await response.json()
-      
-      // Clear cache to force refresh
-      clearSessionData('rules')
-      
-      return result
+      const response = await apiClient.post('/rules', userRuleSet)
+      clearUserCache() // Clear cache after mutation
+      return response.data
     } catch (error) {
-      console.error('Rule set update error:', error)
-      throw error instanceof APIError 
-        ? error 
-        : new APIError(`Failed to update rule set: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Failed to update rule set:', error)
+      throw error
     }
   },
 
   async deleteRuleSet(id: string): Promise<{ status: string; message: string }> {
+    console.log('🔒 Deleting rule set for user:', getCurrentUserId())
+    
     try {
-      console.log(`Deleting rule set ${id}`)
-      
-      const response = await fetch(`${getBackendUrl()}/rules/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Accept': 'application/json',
-          'X-User-ID': getCurrentUserId()
-        }
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`Failed to delete rule set: ${response.statusText}`, response.status)
-      }
-      
-      const result = await response.json()
-      
-      // Clear cache to force refresh
-      clearSessionData('rules')
-      
-      return result
+      const response = await apiClient.delete(`/rules/${id}`)
+      clearUserCache() // Clear cache after mutation
+      return response.data
     } catch (error) {
-      console.error('Rule set deletion error:', error)
-      throw error instanceof APIError 
-        ? error 
-        : new APIError(`Failed to delete rule set: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Failed to delete rule set:', error)
+      throw error
     }
   },
 
@@ -607,37 +531,23 @@ export const api = {
 
   // Exploit Scenarios
   async getScenarios(category?: string): Promise<ExploitScenario[]> {
-    const cacheKey = getCacheKey('scenarios', { category })
-    const cached = getFromCache(cacheKey)
-    if (cached) return cached
-
     try {
-      console.log(`Fetching scenarios from ${getBackendUrl()}/scenarios${category ? `?category=${category}` : ''}`)
-      
-      const response = await fetch(`${getBackendUrl()}/scenarios${category ? `?category=${category}` : ''}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'X-User-ID': getCurrentUserId()
-        }
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`Failed to load scenarios: ${response.statusText}`, response.status)
+      const cacheKey = getCacheKey('scenarios', { category })
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        console.log('🎯 Using cached scenarios data')
+        return cached
       }
+
+      console.log('🔍 Fetching scenarios from API...')
+      const params = category ? { category } : {}
+      const response = await apiClient.get('/scenarios', { params })
       
-      const scenarios = await response.json()
-      console.log(`Successfully fetched ${scenarios.length} scenarios from API`)
-      
-      setCache(cacheKey, scenarios)
-      return scenarios
+      setCache(cacheKey, response.data)
+      return response.data
     } catch (error) {
-      console.error('Scenarios fetch error:', error)
-      throw error instanceof APIError 
-        ? error 
-        : new APIError(`Failed to load scenarios: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('❌ Error fetching scenarios:', error)
+      throw error
     }
   },
 
@@ -677,16 +587,16 @@ export const api = {
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`API Error (${response.status}):`, errorText)
-        throw new APIError(`API Error (${response.status}): ${response.statusText}`, response.status)
+        throw new APIError(`API Error (${response.status}): ${response.statusText}. Try reloading rule sets.`, response.status)
       }
       
       const result = await response.json()
       return result
     } catch (error) {
-      console.error('Scenario test error:', error)
+      console.error('Test scenario error:', error)
       throw error instanceof APIError 
         ? error 
-        : new APIError(`Failed to test scenario: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        : new APIError(`Test error: ${error instanceof Error ? error.message : 'Unknown error'}. Try reloading rule sets.`)
     }
   }
 }
