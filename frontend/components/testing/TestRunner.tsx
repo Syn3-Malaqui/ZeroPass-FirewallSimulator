@@ -52,6 +52,9 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
     try {
       setLoading(true)
       
+      // Clear cache first to ensure fresh data
+      api.clearCache()
+      
       const [fetchedScenarios, fetchedRuleSets] = await Promise.all([
         api.getScenarios(),
         api.getRuleSets()
@@ -66,8 +69,20 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       setScenarios(fetchedScenarios)
       setLocalScenarios(fetchedScenarios)
       setLocalRuleSets(fetchedRuleSets)
+      
+      // Reset selections if they no longer exist
+      if (selectedRuleSet && !fetchedRuleSets.some(rs => rs.id === selectedRuleSet)) {
+        console.log(`Selected rule set ${selectedRuleSet} no longer exists, resetting selection`)
+        setSelectedRuleSet('')
+      }
+      
+      if (selectedScenario && !fetchedScenarios.some(s => s.id === selectedScenario.id)) {
+        console.log(`Selected scenario no longer exists, resetting selection`)
+        setSelectedScenario(null)
+      }
     } catch (error) {
       console.error('Failed to load data:', error)
+      alert('Failed to load testing data. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -86,11 +101,21 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       setIsRunning(true)
       setTestResult(null)
       
+      console.log(`Running test for scenario: ${selectedScenario.id}, rule set: ${selectedRuleSet}`)
+      console.log('Available rule sets:', localRuleSets.map(rs => ({id: rs.id, name: rs.name})))
+      
+      // Verify the rule set exists before testing
+      const ruleSetExists = localRuleSets.some(rs => rs.id === selectedRuleSet)
+      if (!ruleSetExists) {
+        throw new Error(`Rule set ${selectedRuleSet} not found. Please reload the rule sets.`)
+      }
+      
       const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
       setTestResult(result)
       addTestResult(result)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to run test:', error)
+      alert(`Test error: ${error.message || 'Unknown error'}. Try reloading rule sets.`)
     } finally {
       setIsRunning(false)
     }
