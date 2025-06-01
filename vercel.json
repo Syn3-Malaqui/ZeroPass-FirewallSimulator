@@ -2,7 +2,11 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "installCommand": "cd frontend && npm install",
   "outputDirectory": "frontend/.next",
-  "framework": null,
+  "functions": {
+    "frontend/app/**/*.tsx": {
+      "runtime": "@vercel/next"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/backend/:path*",
