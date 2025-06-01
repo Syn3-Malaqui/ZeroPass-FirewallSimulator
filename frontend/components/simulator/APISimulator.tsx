@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react'
 import { Play, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
-import { useAppStore } from '@/lib/store'
+import { useAppStore, useRuleSets } from '@/lib/store'
 import { api, handleAPIError, generateJWTToken, validateIP } from '@/lib/api'
 import type { SimulationRequest } from '@/lib/store'
 
 export function APISimulator() {
+  const ruleSets = useRuleSets()
   const { 
-    ruleSets, 
     simulationResult, 
     setSimulationResult, 
     addToHistory, 

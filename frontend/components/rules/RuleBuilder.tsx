@@ -5,14 +5,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Save, Trash2, Edit, Copy } from 'lucide-react'
-import { useAppStore, type FirewallRuleSet } from '@/lib/store'
+import { useAppStore, useRuleSets, type FirewallRuleSet } from '@/lib/store'
 import { api, handleAPIError } from '@/lib/api'
 import { RuleForm } from './RuleForm'
 import { RuleList } from './RuleList'
 
 export function RuleBuilder() {
+  const ruleSets = useRuleSets()
   const { 
-    ruleSets, 
     currentRuleSet, 
     setRuleSets, 
     setCurrentRuleSet, 

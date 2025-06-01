@@ -10,6 +10,11 @@ export interface User {
 const USER_STORAGE_KEY = 'zeropass_user'
 const SESSION_STORAGE_KEY = 'zeropass_session'
 
+// Check if we're in a browser environment
+function isBrowser(): boolean {
+  return typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+}
+
 // Generate a unique user ID
 function generateUserId(): string {
   return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -22,6 +27,15 @@ function generateSessionId(): string {
 
 // Get or create current user
 export function getCurrentUser(): User {
+  // Return a default user during SSR
+  if (!isBrowser()) {
+    return {
+      id: 'ssr_user',
+      sessionId: 'ssr_session',
+      createdAt: new Date().toISOString()
+    }
+  }
+
   // Check if we have a user in localStorage
   const storedUser = localStorage.getItem(USER_STORAGE_KEY)
   const sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY)
@@ -59,6 +73,8 @@ export function getCurrentUserId(): string {
 
 // Clear user session (for logout or reset)
 export function clearUserSession(): void {
+  if (!isBrowser()) return
+  
   localStorage.removeItem(USER_STORAGE_KEY)
   sessionStorage.removeItem(SESSION_STORAGE_KEY)
 }
@@ -78,6 +94,11 @@ export function addUserIdToData<T>(data: T): T & { userId: string } {
 
 // Filter data by current user
 export function filterByCurrentUser<T extends { userId?: string }>(items: T[]): T[] {
+  if (!isBrowser()) {
+    // During SSR, return empty array to prevent hydration mismatches
+    return []
+  }
+  
   const currentUserId = getCurrentUserId()
   return items.filter(item => item.userId === currentUserId)
 }
@@ -96,6 +117,8 @@ const CACHE_KEYS = [
 
 // Clear all caches
 export function clearAllCaches(): void {
+  if (!isBrowser()) return
+  
   CACHE_KEYS.forEach(key => {
     localStorage.removeItem(key)
     sessionStorage.removeItem(key)
@@ -111,6 +134,14 @@ export function clearAllCaches(): void {
 
 // Initialize user on app start
 export function initializeUser(): User {
+  if (!isBrowser()) {
+    return {
+      id: 'ssr_user',
+      sessionId: 'ssr_session',
+      createdAt: new Date().toISOString()
+    }
+  }
+  
   // Clear caches on new session
   if (!sessionStorage.getItem(SESSION_STORAGE_KEY)) {
     clearAllCaches()

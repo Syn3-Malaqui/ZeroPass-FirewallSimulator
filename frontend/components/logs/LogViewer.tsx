@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useAppStore } from '@/lib/store'
+import { useAppStore, useEvaluationLogs } from '@/lib/store'
 import { api } from '@/lib/api'
 
 export function LogViewer() {
-  const { evaluationLogs, setEvaluationLogs } = useAppStore()
+  const evaluationLogs = useEvaluationLogs()
+  const { setEvaluationLogs } = useAppStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

@@ -98,11 +98,6 @@ interface AppState {
   isLoading: boolean
   error?: string
   
-  // Getters (computed properties) - these filter by current user
-  ruleSets: FirewallRuleSet[]
-  simulationHistory: SimulationResult[]
-  evaluationLogs: EvaluationLog[]
-  
   // Actions
   setRuleSets: (ruleSets: FirewallRuleSet[]) => void
   addRuleSet: (ruleSet: FirewallRuleSet) => void
@@ -125,6 +120,11 @@ interface AppState {
   // User management actions
   initializeUserSession: () => void
   clearUserData: () => void
+  
+  // Getters for filtered data
+  getRuleSets: () => FirewallRuleSet[]
+  getSimulationHistory: () => SimulationResult[]
+  getEvaluationLogs: () => EvaluationLog[]
 }
 
 export const useAppStore = create<AppState>()(
@@ -143,22 +143,6 @@ export const useAppStore = create<AppState>()(
         activeTab: 'rules',
         isLoading: false,
         
-        // Computed getters that filter by current user
-        get ruleSets() {
-          const state = get()
-          return filterByCurrentUser(state._ruleSets)
-        },
-        
-        get simulationHistory() {
-          const state = get()
-          return filterByCurrentUser(state._simulationHistory)
-        },
-        
-        get evaluationLogs() {
-          const state = get()
-          return filterByCurrentUser(state._evaluationLogs)
-        },
-        
         // User management
         initializeUserSession: () => {
           const user = initializeUser()
@@ -175,6 +159,22 @@ export const useAppStore = create<AppState>()(
             simulationResult: undefined,
             error: undefined
           })
+        },
+        
+        // Getters for filtered data (SSR-safe)
+        getRuleSets: () => {
+          const state = get()
+          return filterByCurrentUser(state._ruleSets)
+        },
+        
+        getSimulationHistory: () => {
+          const state = get()
+          return filterByCurrentUser(state._simulationHistory)
+        },
+        
+        getEvaluationLogs: () => {
+          const state = get()
+          return filterByCurrentUser(state._evaluationLogs)
         },
         
         // Actions - automatically add user ID to data
@@ -286,4 +286,9 @@ export const useAppStore = create<AppState>()(
       name: 'firewall-simulator-store'
     }
   )
-) 
+)
+
+// Export convenience hooks that use the getters
+export const useRuleSets = () => useAppStore(state => state.getRuleSets())
+export const useSimulationHistory = () => useAppStore(state => state.getSimulationHistory())
+export const useEvaluationLogs = () => useAppStore(state => state.getEvaluationLogs()) 
