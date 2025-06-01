@@ -9,7 +9,7 @@
     "build": "npm run install-deps && npm run generate"
   },
   "devDependencies": {
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.5"
   },
   "keywords": [
     "favicon",
@@ -28,4 +28,4 @@
     "*.xml",
     "README.md"
   ]
-} 
+}

@@ -12,6 +12,45 @@ export const metadata: Metadata = {
   keywords: ['firewall', 'API gateway', 'security', 'simulator', 'enterprise'],
   authors: [{ name: 'ZeroPass Team' }],
   viewport: 'width=device-width, initial-scale=1',
+  
+  // Favicon Configuration
+  icons: {
+    icon: [
+      { url: '/favicon/favicon.ico', sizes: 'any' },
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    other: [
+      {
+        rel: 'mask-icon',
+        url: '/favicon/safari-pinned-tab.svg',
+        color: '#2563eb',
+      },
+    ],
+  },
+  
+  // PWA Manifest
+  manifest: '/favicon/site.webmanifest',
+  
+  // Theme Colors
+  themeColor: '#2563eb',
+  
+  // Apple Web App Configuration
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'ZeroPass',
+  },
+  
+  // Microsoft Tile Configuration
+  other: {
+    'msapplication-TileColor': '#2563eb',
+    'msapplication-config': '/favicon/browserconfig.xml',
+  },
 }
 
 export default function RootLayout({
