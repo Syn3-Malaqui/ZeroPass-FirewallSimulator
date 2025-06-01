@@ -93,6 +93,13 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
 
   const categories = ['all', ...Array.from(new Set(scenarios.map(s => s.category)))]
 
+  // Mobile detection helper
+  const isMobile = () => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768 || 
+           /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+
   const runTest = async () => {
     if (!selectedScenario || !selectedRuleSet) {
       console.error('Missing scenario or rule set selection')
@@ -105,12 +112,29 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       
       console.log(`Running test with scenario ${selectedScenario.id} and rule set ${selectedRuleSet}`)
       
-      // Make sure rule set exists before running test
-      const ruleSets = await api.getRuleSets()
-      const ruleSetExists = ruleSets.some(rs => rs.id === selectedRuleSet)
-      
-      if (!ruleSetExists) {
-        throw new Error(`Rule set with ID ${selectedRuleSet} not found. Please select another rule set.`)
+      // On mobile, always force reload rule sets first to ensure latest data
+      if (isMobile()) {
+        try {
+          console.log('Mobile device detected, forcing rule set reload before test')
+          const ruleSets = await api.getRuleSets()
+          setLocalRuleSets(ruleSets)
+          const ruleSetExists = ruleSets.some(rs => rs.id === selectedRuleSet)
+          
+          if (!ruleSetExists) {
+            throw new Error(`Rule set with ID ${selectedRuleSet} not found on mobile. Please select another rule set.`)
+          }
+        } catch (error) {
+          console.error('Error pre-loading rule sets on mobile:', error)
+          // Continue anyway - the API call itself will retry
+        }
+      } else {
+        // Make sure rule set exists before running test
+        const ruleSets = await api.getRuleSets()
+        const ruleSetExists = ruleSets.some(rs => rs.id === selectedRuleSet)
+        
+        if (!ruleSetExists) {
+          throw new Error(`Rule set with ID ${selectedRuleSet} not found. Please select another rule set.`)
+        }
       }
       
       const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
@@ -119,10 +143,15 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       addTestResult(result)
     } catch (error: any) {
       console.error('Failed to run test:', error)
-      alert(`Test failed: ${error.message || 'Unknown error'}`)
+      
+      // Only show alert on non-mobile to avoid annoying mobile users
+      if (!isMobile()) {
+        alert(`Test failed: ${error.message || 'Unknown error'}`)
+      }
       
       // If rule set not found, reload data
-      if (error.message && error.message.includes('Rule set not found')) {
+      if (error.message && (error.message.includes('Rule set not found') || error.message.includes('404'))) {
+        console.log('Reloading data after rule set not found')
         await loadData()
       }
     } finally {
