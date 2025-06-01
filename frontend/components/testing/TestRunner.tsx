@@ -48,6 +48,18 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
     loadData()
   }, [])
 
+  // Reload data periodically to prevent stale rule sets
+  useEffect(() => {
+    // Reload when the component mounts and every 60 seconds after that
+    const intervalId = setInterval(() => {
+      console.log('Auto-refreshing test data...')
+      loadData()
+    }, 60000) // Every 60 seconds
+    
+    // Clean up on unmount
+    return () => clearInterval(intervalId)
+  }, [])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -63,7 +75,21 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       })
       
       if (fetchedRuleSets.length === 0) {
-        console.warn('No rule sets found - user may need to create rule sets first')
+        console.warn('No rule sets found - attempting to create one automatically')
+        try {
+          // Attempt to create a rule set automatically
+          const ruleSetId = await api.ensureRuleSetExists()
+          console.log('Created rule set automatically:', ruleSetId)
+          
+          // Reload rule sets after creation
+          const refreshedRuleSets = await api.getRuleSets()
+          setLocalRuleSets(refreshedRuleSets)
+          setSelectedRuleSet(ruleSetId) // Auto-select the created rule set
+        } catch (error) {
+          console.error('Failed to auto-create rule set:', error)
+        }
+      } else {
+        setLocalRuleSets(fetchedRuleSets)
       }
       
       const fetchedScenarios = await api.getScenarios()
@@ -73,7 +99,6 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       
       setScenarios(fetchedScenarios)
       setLocalScenarios(fetchedScenarios)
-      setLocalRuleSets(fetchedRuleSets)
       
       // Clear selections if previously selected items don't exist anymore
       if (selectedRuleSet && !fetchedRuleSets.some(rs => rs.id === selectedRuleSet)) {
@@ -120,21 +145,41 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       setIsRunning(true)
       setTestResult(null)
       
+      // Clear cache first to ensure absolutely fresh data
+      api.clearCache()
+      
       console.log(`Running test with scenario ${selectedScenario.id} and rule set ${selectedRuleSet}`)
       
-      // Verify rule set exists before running test (with fresh data)
+      // Verify rule set exists before running test (with guaranteed fresh data)
       console.log('🔍 Verifying rule set exists before testing...')
       const freshRuleSets = await api.getRuleSets()
       const ruleSetExists = freshRuleSets.some(rs => rs.id === selectedRuleSet)
       
       if (!ruleSetExists) {
+        console.error(`Rule set with ID ${selectedRuleSet} not found in available rule sets:`, freshRuleSets.map(rs => rs.id))
         throw new Error(`Rule set with ID ${selectedRuleSet} not found. Please refresh the page and select another rule set.`)
       }
       
-      const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
-      console.log('Test result:', result)
-      setTestResult(result)
-      addTestResult(result)
+      try {
+        const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
+        console.log('Test result:', result)
+        setTestResult(result)
+        addTestResult(result)
+      } catch (error: any) {
+        // If the test fails with a 404, try one more time with a fresh cache
+        if (error.message && error.message.includes('Rule set not found') && error.status === 404) {
+          console.log('🔄 First attempt failed with 404, trying again with fresh cache...')
+          // Force a complete cache reset
+          api.clearCache()
+          await new Promise(resolve => setTimeout(resolve, 300)) // Small delay
+          const result = await api.testScenario(selectedScenario.id, selectedRuleSet)
+          console.log('Second attempt test result:', result)
+          setTestResult(result)
+          addTestResult(result)
+        } else {
+          throw error // Re-throw if it's not a 404 or second attempt
+        }
+      }
     } catch (error: any) {
       console.error('Failed to run test:', error)
       
@@ -142,7 +187,11 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       
       // Handle specific error cases
       if (errorMessage.includes('Rule set not found') || errorMessage.includes('404')) {
-        errorMessage = `Rule set not found. This might be due to a session issue. Please refresh the page and try again.`
+        errorMessage = `Rule set not found. This might be due to a session issue. Please try the following:
+1. Click the Reload Rule Sets button below
+2. If that doesn't work, refresh the page
+3. If still failing, try creating a new rule set`
+        
         // Clear selection to prevent repeated failures
         setSelectedRuleSet('')
         // Reload data

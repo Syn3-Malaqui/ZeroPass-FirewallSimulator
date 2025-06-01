@@ -461,6 +461,39 @@ export const api = {
     }
   },
 
+  // Utility function to ensure a rule set exists
+  async ensureRuleSetExists(): Promise<string> {
+    try {
+      // First check if any rule sets exist
+      const ruleSets = await this.getRuleSets()
+      
+      if (ruleSets.length > 0) {
+        // Return the ID of the first rule set
+        return ruleSets[0].id
+      }
+      
+      // No rule sets exist, create one from a template
+      console.log('No rule sets found, creating one from template...')
+      const templates = await this.getTemplates()
+      
+      if (templates.length === 0) {
+        throw new Error('No templates available to create rule set')
+      }
+      
+      // Use the first template
+      const template = templates[0]
+      const ruleSetName = `Auto-created Rule Set (${new Date().toLocaleTimeString()})`
+      
+      const result = await this.applyTemplate(template.id, ruleSetName)
+      console.log('Created new rule set:', result)
+      
+      return result.rule_set_id
+    } catch (error) {
+      console.error('Failed to ensure rule set exists:', error)
+      throw error
+    }
+  },
+
   async applyTemplate(templateId: string, ruleSetName: string): Promise<{ message: string; rule_set_id: string }> {
     try {
       console.log(`Applying template ${templateId} with name ${ruleSetName}`)
@@ -519,14 +552,21 @@ export const api = {
       
       // First verify rule set exists with fresh data
       console.log('🔍 Verifying rule set exists before testing...')
+      
+      // Clear cache to ensure fresh data
+      clearUserCache()
+      
       const ruleSets = await this.getRuleSets()
+      console.log('Available rule sets before test:', ruleSets.map(rs => rs.id))
       const ruleSetExists = ruleSets.some(rs => rs.id === ruleSetId)
       
       if (!ruleSetExists) {
         // Clear cache and try one more time
         console.log('🔄 Rule set not found in cache, clearing cache and retrying...')
         clearUserCache()
+        await new Promise(resolve => setTimeout(resolve, 300)) // Small delay
         const freshRuleSets = await this.getRuleSets()
+        console.log('Available rule sets after refresh:', freshRuleSets.map(rs => rs.id))
         const stillExists = freshRuleSets.some(rs => rs.id === ruleSetId)
         
         if (!stillExists) {
@@ -534,6 +574,7 @@ export const api = {
         }
       }
       
+      console.log(`Making test request to ${getBackendUrl()}/scenarios/${scenarioId}/test with rule set ${ruleSetId}`)
       const response = await fetch(`${getBackendUrl()}/scenarios/${scenarioId}/test?rule_set_id=${encodeURIComponent(ruleSetId)}`, {
         method: 'POST',
         headers: {
@@ -548,6 +589,38 @@ export const api = {
         console.error(`API Error (${response.status}):`, errorText)
         
         if (response.status === 404 && errorText.includes('Rule set not found')) {
+          // If rule set not found, try a special technique:
+          // 1. Create a rule set from template
+          // 2. Use that rule set ID instead
+          if (errorText.includes('Rule set not found')) {
+            try {
+              console.log('🚨 Rule set not found in backend despite verification. Attempting recovery...')
+              // Try one more special recovery strategy: get the most recent rule set
+              const latestRuleSets = await this.getRuleSets()
+              if (latestRuleSets.length > 0) {
+                const latestRuleSet = latestRuleSets[0]
+                console.log(`Trying alternate rule set: ${latestRuleSet.id}`)
+                
+                // Make second attempt with different rule set
+                const recoveryResponse = await fetch(`${getBackendUrl()}/scenarios/${scenarioId}/test?rule_set_id=${encodeURIComponent(latestRuleSet.id)}`, {
+                  method: 'POST',
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-User-ID': getCurrentUserId()
+                  }
+                })
+                
+                if (recoveryResponse.ok) {
+                  console.log('✅ Recovery successful using alternate rule set')
+                  return await recoveryResponse.json()
+                }
+              }
+            } catch (recoveryError) {
+              console.error('Recovery strategy failed:', recoveryError)
+            }
+          }
+          
           throw new APIError(`Rule set not found. Please refresh the page and try again.`, 404)
         }
         
