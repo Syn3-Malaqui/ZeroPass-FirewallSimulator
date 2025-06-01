@@ -13,13 +13,11 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
-      <Header debugMode={debugMode} onDebugToggle={toggleDebugMode} />
-      
-      <main className="relative">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <Header debugMode={debugMode} onToggleDebug={toggleDebugMode} />
+      <main className="container mx-auto px-4 py-4 sm:py-8 max-w-7xl">
         <Dashboard />
       </main>
-      
       {debugMode && <DebugPanel />}
     </div>
   )

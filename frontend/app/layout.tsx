@@ -1,64 +1,54 @@
+import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { Metadata } from 'next'
+import React from 'react'
 import './globals.css'
-import ClientLayout from './ClientLayout'
+import { Providers } from './providers'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'ZeroPass - Firewall Simulator',
-  description: 'A sophisticated firewall rule simulator and testing platform',
+  title: 'ZeroPass Firewall Simulator',
+  description: 'Enterprise API Gateway Firewall Rule Simulator for testing and validating API security policies',
+  keywords: ['firewall', 'API gateway', 'security', 'simulator', 'enterprise'],
+  authors: [{ name: 'ZeroPass Team' }],
+  viewport: 'width=device-width, initial-scale=1',
   
-  // Favicon and icons configuration
+  // Favicon Configuration
   icons: {
     icon: [
-      { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon/favicon.ico', sizes: 'any' },
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon/favicon.ico' },
+      { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
     ],
     apple: [
       { url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
     other: [
-      { rel: 'icon', url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-      { rel: 'mask-icon', url: '/favicon/safari-pinned-tab.svg', color: '#3b82f6' },
+      {
+        rel: 'mask-icon',
+        url: '/favicon/safari-pinned-tab.svg',
+        color: '#2563eb',
+      },
     ],
   },
   
-  // Additional metadata for better SEO and PWA support
-  keywords: 'firewall, simulator, security, rules, testing, zeropass',
-  authors: [{ name: 'ZeroPass Team' }],
-  creator: 'ZeroPass',
-  publisher: 'ZeroPass',
-  
-  // Theme configuration
-  themeColor: '#3b82f6',
-  colorScheme: 'light',
-  
-  // Viewport
-  viewport: 'width=device-width, initial-scale=1',
-  
-  // Open Graph
-  openGraph: {
-    title: 'ZeroPass - Firewall Simulator',
-    description: 'A sophisticated firewall rule simulator and testing platform',
-    type: 'website',
-    locale: 'en_US',
-  },
-  
-  // Twitter Card
-  twitter: {
-    card: 'summary_large_image',
-    title: 'ZeroPass - Firewall Simulator',
-    description: 'A sophisticated firewall rule simulator and testing platform',
-  },
-  
-  // PWA manifest
+  // PWA Manifest
   manifest: '/favicon/site.webmanifest',
   
-  // Additional tags
+  // Theme Colors
+  themeColor: '#2563eb',
+  
+  // Apple Web App Configuration
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'ZeroPass',
+  },
+  
+  // Microsoft Tile Configuration
   other: {
-    'msapplication-TileColor': '#3b82f6',
+    'msapplication-TileColor': '#2563eb',
     'msapplication-config': '/favicon/browserconfig.xml',
   },
 }
@@ -70,15 +60,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        {/* Additional favicon fallbacks */}
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-      </head>
       <body className={inter.className}>
-        <ClientLayout>
+        <Providers>
           {children}
-        </ClientLayout>
+        </Providers>
       </body>
     </html>
   )

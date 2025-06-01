@@ -1,18 +1,13 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useAppStore } from '@/lib/store'
 import { RuleBuilder } from './rules/RuleBuilder'
 import { APISimulator } from './simulator/APISimulator'
 import { LogViewer } from './logs/LogViewer'
 
 export function Dashboard() {
-  const { activeTab, isLoading, error, initializeSession } = useAppStore()
-
-  // Initialize user session silently in the background
-  useEffect(() => {
-    initializeSession()
-  }, [initializeSession])
+  const { activeTab, isLoading, error } = useAppStore()
 
   return (
     <>
@@ -61,7 +56,7 @@ export function Dashboard() {
           }`}>
             <RuleBuilder />
           </div>
-
+          
           {/* Simulator Tab */}
           <div className={`transition-all duration-300 ${
             activeTab === 'simulator' 
@@ -70,7 +65,7 @@ export function Dashboard() {
           }`}>
             <APISimulator />
           </div>
-
+          
           {/* Logs Tab */}
           <div className={`transition-all duration-300 ${
             activeTab === 'logs' 
@@ -83,4 +78,6 @@ export function Dashboard() {
       </div>
     </>
   )
-} 
+}
+
+// Fixed Vercel deployment issue by using LogViewer instead of EvaluationLogs 
