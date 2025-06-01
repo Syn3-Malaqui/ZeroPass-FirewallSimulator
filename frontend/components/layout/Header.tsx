@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Activity, FileText, Menu, X, User, Trash2, RefreshCw, Shield, Target, ChevronDown } from 'lucide-react'
+import { Activity, FileText, Menu, X, User, Trash2, RefreshCw, Shield, Target, ChevronDown, Gauge } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { getCurrentUser, clearUserSession, clearAllCaches } from '@/lib/user'
 import { api } from '@/lib/api'
@@ -124,6 +124,17 @@ export function Header({ debugMode, onToggleDebug }: HeaderProps) {
                     >
                       <Shield className="h-4 w-4" />
                       <span>Template Gallery</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        window.open('/diagnostics', '_blank')
+                        setShowLogoDropdown(false)
+                      }}
+                      className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <Gauge className="h-4 w-4 text-amber-500" />
+                      <span>Backend Diagnostics</span>
                     </button>
                   </div>
                 </div>
