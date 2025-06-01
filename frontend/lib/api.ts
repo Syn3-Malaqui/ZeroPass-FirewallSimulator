@@ -41,10 +41,10 @@ const getBackendUrl = () => {
 
 // Log API configuration
 if (typeof window !== 'undefined') {
-  console.log('🌐 API Configuration:')
-  console.log('NEXT_PUBLIC_BACKEND_URL:', process.env.NEXT_PUBLIC_BACKEND_URL)
+console.log('🌐 API Configuration:')
+console.log('NEXT_PUBLIC_BACKEND_URL:', process.env.NEXT_PUBLIC_BACKEND_URL)
   console.log('API_BASE_URL:', getBackendUrl())
-  console.log('NODE_ENV:', process.env.NODE_ENV)
+console.log('NODE_ENV:', process.env.NODE_ENV)
   console.log('Window location:', typeof window !== 'undefined' ? window.location.hostname : 'SSR')
 }
 
@@ -259,6 +259,30 @@ export const api = {
     invalidateCache(pattern)
   },
 
+  // Health check
+  async health() {
+    try {
+      const response = await fetch(`${getBackendUrl()}/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'X-User-ID': getCurrentUserId()
+        }
+      })
+
+      if (!response.ok) {
+        throw new APIError(`Health check failed: ${response.statusText}`, response.status)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Health check error:', error)
+      throw error instanceof APIError 
+        ? error 
+        : new APIError(`Health check error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  },
+
   // Rule Set Management - with improved caching and error handling
   async getRuleSets(): Promise<FirewallRuleSet[]> {
     const cacheKey = getCacheKey('rules')
@@ -464,7 +488,7 @@ export const api = {
   // Scenarios
   async getScenarios(): Promise<ExploitScenario[]> {
     const cacheKey = getCacheKey('scenarios')
-    const cached = getFromCache(cacheKey)
+      const cached = getFromCache(cacheKey)
     if (cached) return cached
 
     try {
