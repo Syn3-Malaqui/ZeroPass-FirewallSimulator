@@ -46,6 +46,27 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
 
   useEffect(() => {
     loadData()
+    
+    // Set up interval to periodically refresh rule sets
+    const intervalId = setInterval(() => {
+      console.log('Automatic refresh of rule sets')
+      loadData()
+    }, 30000) // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId)
+  }, [])
+  
+  // Force reload when the component becomes visible
+  useEffect(() => {
+    const visibilityHandler = () => {
+      if (!document.hidden) {
+        console.log('TestRunner became visible, refreshing data')
+        loadData()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', visibilityHandler)
+    return () => document.removeEventListener('visibilitychange', visibilityHandler)
   }, [])
 
   const loadData = async () => {
@@ -63,7 +84,7 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
       console.log('Loaded data:', {
         scenarios: fetchedScenarios.length,
         ruleSets: fetchedRuleSets.length,
-        ruleSetData: fetchedRuleSets
+        ruleSetIds: fetchedRuleSets.map(rs => rs.id)
       })
       
       setScenarios(fetchedScenarios)
@@ -258,18 +279,28 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
             <div className="flex space-x-2">
               <select
                 value={selectedRuleSet}
-                onChange={(e) => setSelectedRuleSet(e.target.value)}
+                onChange={(e) => {
+                  console.log(`Rule set selected: ${e.target.value}`)
+                  setSelectedRuleSet(e.target.value)
+                }}
                 className="flex-1 px-3 py-2 sm:py-2.5 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Choose a rule set to test...</option>
-                {localRuleSets.map((ruleSet) => (
-                  <option key={ruleSet.id} value={ruleSet.id}>
-                    {ruleSet.name}
-                  </option>
-                ))}
+                {localRuleSets.length > 0 ? (
+                  localRuleSets.map((ruleSet) => (
+                    <option key={ruleSet.id} value={ruleSet.id}>
+                      {ruleSet.name} ({ruleSet.id.substring(0, 8)})
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>No rule sets available</option>
+                )}
               </select>
               <button 
-                onClick={loadData}
+                onClick={() => {
+                  api.clearCache() // Force clear cache
+                  loadData()
+                }}
                 className="px-3 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors"
                 title="Reload rule sets"
               >
@@ -411,3 +442,5 @@ export const TestRunner = forwardRef<TestRunnerRefType, TestRunnerProps>(({ onCl
     </div>
   )
 }) 
+
+TestRunner.displayName = 'TestRunner'
