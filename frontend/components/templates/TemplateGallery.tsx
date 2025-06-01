@@ -48,12 +48,15 @@ export function TemplateGallery({ onClose }: TemplateGalleryProps) {
       setLocalLoading(true)
       setError(undefined)
       
-      const fetchedTemplates = await api.getTemplates()
-      setTemplates(fetchedTemplates)
-      setLocalTemplates(fetchedTemplates)
-    } catch (error) {
-      console.error('Failed to load templates:', error)
-      setError('Failed to load templates')
+      console.log('Loading templates from API...')
+      const templates = await api.getTemplates()
+      console.log(`Successfully loaded ${templates.length} templates`)
+      
+      setTemplates(templates)
+      setLocalTemplates(templates)
+    } catch (error: any) {
+      console.error('Error loading templates:', error)
+      setError(error.message || 'Failed to load templates')
     } finally {
       setLocalLoading(false)
     }

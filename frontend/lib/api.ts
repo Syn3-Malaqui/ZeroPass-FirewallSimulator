@@ -443,23 +443,36 @@ export const api = {
 
   // Template Management
   async getTemplates(category?: string): Promise<RuleTemplate[]> {
+    const cacheKey = getCacheKey('templates', { category })
+    const cached = getFromCache(cacheKey)
+    if (cached) return cached
+
     try {
-      const cacheKey = getCacheKey('templates', { category })
-      const cached = getFromCache(cacheKey)
-      if (cached) {
-        console.log('📋 Using cached templates data')
-        return cached
+      console.log(`Fetching templates from ${getBackendUrl()}/templates${category ? `?category=${category}` : ''}`)
+      const response = await fetch(`${getBackendUrl()}/templates${category ? `?category=${category}` : ''}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'X-User-ID': getCurrentUserId()
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`API Error (${response.status}):`, errorText)
+        throw new APIError(`Failed to load templates: ${response.statusText}`, response.status)
       }
 
-      console.log('🔍 Fetching templates from API...')
-      const params = category ? { category } : {}
-      const response = await apiClient.get('/templates', { params })
+      const templates = await response.json()
+      console.log(`Successfully fetched ${templates.length} templates from API`)
       
-      setCache(cacheKey, response.data)
-      return response.data
+      setCache(cacheKey, templates)
+      return templates
     } catch (error) {
-      console.error('❌ Error fetching templates:', error)
-      throw error
+      console.error('Template fetch error:', error)
+      throw error instanceof APIError 
+        ? error 
+        : new APIError(`Failed to load templates: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   },
 
@@ -485,19 +498,35 @@ export const api = {
 
   async applyTemplate(templateId: string, ruleSetName: string): Promise<{ message: string; rule_set_id: string }> {
     try {
-      console.log(`🔧 Applying template ${templateId} with name "${ruleSetName}"...`)
-      const response = await apiClient.post(`/templates/${templateId}/apply`, null, {
-        params: { rule_set_name: ruleSetName }
+      console.log(`Applying template ${templateId} with name ${ruleSetName}`)
+      
+      const response = await fetch(`${getBackendUrl()}/templates/${templateId}/apply?rule_set_name=${encodeURIComponent(ruleSetName)}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-User-ID': getCurrentUserId()
+        }
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`API Error (${response.status}):`, errorText)
+        throw new APIError(`Failed to apply template: ${response.statusText}`, response.status)
+      }
+      
+      const result = await response.json()
       
       // Clear caches to force refresh
       clearUserCache()
       clearSessionData('rules')
       
-      return response.data
+      return result
     } catch (error) {
-      console.error(`❌ Error applying template ${templateId}:`, error)
-      throw error
+      console.error('Template application error:', error)
+      throw error instanceof APIError 
+        ? error 
+        : new APIError(`Failed to apply template: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   },
 
