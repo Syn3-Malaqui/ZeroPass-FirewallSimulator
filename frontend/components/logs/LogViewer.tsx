@@ -42,21 +42,21 @@ export function LogViewer() {
   }, [])
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Evaluation Logs</h2>
+    <div className="transform scale-90 origin-top space-y-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl font-bold">Evaluation Logs</h2>
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={fetchLogs}
             disabled={isLoading}
-            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+            className="w-full sm:w-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
           >
             Refresh
           </button>
           <button
             onClick={clearLogs}
             disabled={isLoading}
-            className="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
+            className="w-full sm:w-auto px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
           >
             Clear All
           </button>
@@ -64,30 +64,30 @@ export function LogViewer() {
       </div>
 
       {error && (
-        <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
           {error}
         </div>
       )}
 
       {isLoading ? (
-        <div className="text-center p-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center p-6">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
           <p className="mt-2 text-gray-600">Loading logs...</p>
         </div>
       ) : evaluationLogs.length === 0 ? (
-        <div className="text-center p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+        <div className="text-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <p className="text-gray-600">No evaluation logs found. Simulate requests to generate logs.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {evaluationLogs.map((log, index) => (
-            <div key={index} className="p-4 sm:p-6 bg-white rounded-lg shadow border">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-4">
+            <div key={index} className="p-4 sm:p-5 bg-white rounded-lg shadow border">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
                 <div className="text-sm font-medium text-gray-900">
                   {new Date(log.timestamp).toLocaleString()}
                 </div>
                 <span
-                  className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
+                  className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                     log.result.decision === 'ALLOWED'
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
@@ -97,7 +97,7 @@ export function LogViewer() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 text-sm">
                 <div>
                   <span className="text-gray-500 font-medium">Rule Set:</span>
                   <div className="text-gray-900 break-all">{log.rule_set_id}</div>
@@ -108,13 +108,13 @@ export function LogViewer() {
                 </div>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-3">
                 <span className="text-gray-500 font-medium text-sm">Reason:</span>
                 <div className="text-gray-900 text-sm mt-1 break-words">{log.result.reason}</div>
               </div>
 
               {log.result.matched_rule && (
-                <div className="mb-4">
+                <div className="mb-3">
                   <span className="text-gray-500 font-medium text-sm">Matched Rule:</span>
                   <div className="text-gray-900 text-sm mt-1 font-mono bg-gray-50 px-2 py-1 rounded">
                     {log.result.matched_rule}
@@ -122,11 +122,11 @@ export function LogViewer() {
                 </div>
               )}
 
-              <div className="border-t pt-4">
+              <div className="border-t pt-3">
                 <div className="font-medium text-sm text-gray-700 mb-2">Evaluation Details:</div>
                 <div className="space-y-1">
                   {log.result.evaluation_details.map((detail, i) => (
-                    <div key={i} className="text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded border-l-2 border-blue-200 break-words">
+                    <div key={i} className="text-xs text-gray-600 bg-gray-50 px-2 py-1.5 rounded border-l-2 border-blue-200 break-words">
                       {detail}
                     </div>
                   ))}

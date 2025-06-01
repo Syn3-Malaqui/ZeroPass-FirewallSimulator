@@ -111,20 +111,20 @@ export function RuleBuilder() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="transform scale-90 origin-top space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="text-center sm:text-left">
-          <h2 className="text-2xl font-bold text-gray-900">Firewall Rule Builder</h2>
+          <h2 className="text-xl font-bold text-gray-900">Firewall Rule Builder</h2>
           <p className="text-gray-600 mt-1">Create and manage API gateway firewall rules</p>
         </div>
         
         {!showForm && (
           <button
             onClick={handleCreateNew}
-            className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
             <span>New Rule Set</span>
           </button>
         )}
@@ -132,8 +132,8 @@ export function RuleBuilder() {
 
       {/* Form or List */}
       {showForm ? (
-        <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
-          <div className="mb-6">
+        <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-5">
+          <div className="mb-5">
             <h3 className="text-lg font-semibold text-gray-900">
               {editMode ? 'Edit Rule Set' : 'Create New Rule Set'}
             </h3>
