@@ -1,13 +1,24 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useAppStore } from '@/lib/store'
 import { RuleBuilder } from './rules/RuleBuilder'
 import { APISimulator } from './simulator/APISimulator'
 import { LogViewer } from './logs/LogViewer'
+import { TemplateGallery } from './templates/TemplateGallery'
+import { TestRunner } from './testing/TestRunner'
 
 export function Dashboard() {
   const { activeTab, isLoading, error } = useAppStore()
+  const testRunnerRef = useRef<{ forceReload: () => void } | null>(null)
+  
+  // Reload TestRunner data when switching to testing tab
+  useEffect(() => {
+    if (activeTab === 'testing' && testRunnerRef.current) {
+      console.log('Testing tab activated, reloading data...')
+      testRunnerRef.current.forceReload()
+    }
+  }, [activeTab])
 
   return (
     <>
@@ -47,7 +58,7 @@ export function Dashboard() {
         )}
 
         {/* Tab Content with smooth transitions */}
-        <div className="min-h-[70vh] relative">
+        <div className="sm:min-h-[70vh] h-auto relative">
           {/* Rules Tab */}
           <div className={`transition-all duration-300 ${
             activeTab === 'rules' 
@@ -73,6 +84,28 @@ export function Dashboard() {
               : 'opacity-0 translate-y-4 absolute inset-0 pointer-events-none'
           }`}>
             <LogViewer />
+          </div>
+          
+          {/* Templates Tab */}
+          <div className={`transition-all duration-300 ${
+            activeTab === 'templates' 
+              ? 'opacity-100 translate-y-0 relative' 
+              : 'opacity-0 translate-y-4 absolute inset-0 pointer-events-none'
+          }`}>
+            <TemplateGallery />
+          </div>
+          
+          {/* Testing Tab */}
+          <div 
+            className={`transition-all duration-300 ${
+              activeTab === 'testing' 
+                ? 'opacity-100 translate-y-0 relative h-auto pb-0' 
+                : 'opacity-0 translate-y-4 absolute inset-0 pointer-events-none'
+            }`} 
+            style={activeTab === 'testing' ? {paddingBottom: 0, marginBottom: 0, overflow: 'hidden'} : {}}
+            data-tab="testing"
+          >
+            <TestRunner ref={testRunnerRef} />
           </div>
         </div>
       </div>

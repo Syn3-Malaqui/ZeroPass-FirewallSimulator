@@ -78,6 +78,44 @@ export interface EvaluationLog {
   userId?: string // Added for user isolation
 }
 
+export interface RuleTemplate {
+  id: string
+  name: string
+  description: string
+  category: string
+  rule_configuration: Record<string, any>
+  is_public: boolean
+  created_by?: string
+  created_at?: string
+  userId?: string
+}
+
+export interface ExploitScenario {
+  id: string
+  name: string
+  description: string
+  category: string
+  attack_type: string
+  test_requests: Array<Record<string, any>>
+  expected_results: string[]
+  is_public: boolean
+  created_by?: string
+  created_at?: string
+  userId?: string
+}
+
+export interface ScenarioTestResult {
+  scenario_id: string
+  rule_set_id: string
+  total_tests: number
+  passed_tests: number
+  failed_tests: number
+  test_details: Array<Record<string, any>>
+  coverage_score: number
+  effectiveness_score: number
+  userId?: string
+}
+
 interface AppState {
   // User management
   currentUserId: string
@@ -85,6 +123,11 @@ interface AppState {
   // Rule Sets - internally stores all data, but getters filter by user
   _ruleSets: FirewallRuleSet[]
   currentRuleSet?: FirewallRuleSet
+  
+  // Templates and Scenarios
+  _templates: RuleTemplate[]
+  _scenarios: ExploitScenario[]
+  _testResults: ScenarioTestResult[]
   
   // Simulation
   simulationResult?: SimulationResult
@@ -94,7 +137,8 @@ interface AppState {
   _evaluationLogs: EvaluationLog[]
   
   // UI State
-  activeTab: 'rules' | 'simulator' | 'logs'
+  activeTab: 'rules' | 'simulator' | 'logs' | 'templates' | 'testing'
+  debugMode: boolean
   isLoading: boolean
   error?: string
   
@@ -113,9 +157,16 @@ interface AppState {
   addEvaluationLog: (log: EvaluationLog) => void
   clearLogs: () => void
   
-  setActiveTab: (tab: 'rules' | 'simulator' | 'logs') => void
+  setActiveTab: (tab: 'rules' | 'simulator' | 'logs' | 'templates' | 'testing') => void
+  setDebugMode: (debug: boolean) => void
   setLoading: (loading: boolean) => void
   setError: (error?: string) => void
+  
+  // Template and Scenario actions
+  setTemplates: (templates: RuleTemplate[]) => void
+  setScenarios: (scenarios: ExploitScenario[]) => void
+  addTestResult: (result: ScenarioTestResult) => void
+  clearTestResults: () => void
   
   // User management actions
   initializeUserSession: () => void
@@ -125,6 +176,9 @@ interface AppState {
   getRuleSets: () => FirewallRuleSet[]
   getSimulationHistory: () => SimulationResult[]
   getEvaluationLogs: () => EvaluationLog[]
+  getTemplates: () => RuleTemplate[]
+  getScenarios: () => ExploitScenario[]
+  getTestResults: () => ScenarioTestResult[]
 }
 
 export const useAppStore = create<AppState>()(
@@ -139,8 +193,14 @@ export const useAppStore = create<AppState>()(
         _simulationHistory: [],
         _evaluationLogs: [],
         
+        // Templates and Scenarios
+        _templates: [],
+        _scenarios: [],
+        _testResults: [],
+        
         // UI State
         activeTab: 'rules',
+        debugMode: false,
         isLoading: false,
         
         // User management
@@ -155,6 +215,9 @@ export const useAppStore = create<AppState>()(
             _ruleSets: [],
             _simulationHistory: [],
             _evaluationLogs: [],
+            _templates: [],
+            _scenarios: [],
+            _testResults: [],
             currentRuleSet: undefined,
             simulationResult: undefined,
             error: undefined
@@ -175,6 +238,21 @@ export const useAppStore = create<AppState>()(
         getEvaluationLogs: () => {
           const state = get()
           return filterByCurrentUser(state._evaluationLogs)
+        },
+        
+        getTemplates: () => {
+          const state = get()
+          return state._templates // Templates can be public, so no user filtering needed
+        },
+        
+        getScenarios: () => {
+          const state = get()
+          return state._scenarios // Scenarios can be public, so no user filtering needed
+        },
+        
+        getTestResults: () => {
+          const state = get()
+          return filterByCurrentUser(state._testResults)
         },
         
         // Actions - automatically add user ID to data
@@ -262,8 +340,17 @@ export const useAppStore = create<AppState>()(
         })),
         
         setActiveTab: (tab) => set({ activeTab: tab }),
+        setDebugMode: (debug) => set({ debugMode: debug }),
         setLoading: (loading) => set({ isLoading: loading }),
         setError: (error) => set({ error }),
+        
+        // Template and Scenario actions
+        setTemplates: (templates) => set({ _templates: templates }),
+        setScenarios: (scenarios) => set({ _scenarios: scenarios }),
+        addTestResult: (result) => set((state) => ({
+          _testResults: [...state._testResults, result]
+        })),
+        clearTestResults: () => set({ _testResults: [] }),
       }),
       {
         name: 'firewall-simulator-store',
@@ -291,4 +378,7 @@ export const useAppStore = create<AppState>()(
 // Export convenience hooks that use the getters
 export const useRuleSets = () => useAppStore(state => state.getRuleSets())
 export const useSimulationHistory = () => useAppStore(state => state.getSimulationHistory())
-export const useEvaluationLogs = () => useAppStore(state => state.getEvaluationLogs()) 
+export const useEvaluationLogs = () => useAppStore(state => state.getEvaluationLogs())
+export const useTemplates = () => useAppStore(state => state.getTemplates())
+export const useScenarios = () => useAppStore(state => state.getScenarios())
+export const useTestResults = () => useAppStore(state => state.getTestResults()) 

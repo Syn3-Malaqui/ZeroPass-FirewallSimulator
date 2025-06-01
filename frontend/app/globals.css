@@ -56,6 +56,57 @@
   body {
     @apply bg-gray-50 text-gray-900;
   }
+  
+  /* Mobile-specific adjustments */
+  @media (max-width: 640px) {
+    html, body {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    
+    body {
+      overflow-y: auto;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1;
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    
+    /* Fix bottom spacing issues */
+    .text-2xs {
+      font-size: 0.65rem;
+      line-height: 1rem;
+    }
+    
+    /* Remove all bottom padding/margin from these components */
+    [data-tab="testing"], 
+    [data-tab="testing"] > div,
+    [data-tab="testing"] > div > div {
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+      min-height: 0 !important;
+      height: auto !important;
+    }
+    
+    /* Remove any possible extra space */
+    #__next,
+    #__next > div,
+    #__next > div > main,
+    #__next > div > main > div {
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+      min-height: 0 !important;
+    }
+  }
 }
 
 @layer components {

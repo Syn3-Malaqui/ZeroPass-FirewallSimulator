@@ -13,9 +13,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="sm:min-h-screen h-auto bg-gradient-to-br from-gray-50 to-gray-100" style={{overflowX: 'hidden', overflowY: 'auto'}}>
       <Header debugMode={debugMode} onToggleDebug={toggleDebugMode} />
-      <main className="container mx-auto px-4 py-4 sm:py-8 max-w-7xl">
+      <main className="container mx-auto px-4 py-2 sm:py-8 max-w-7xl" style={{paddingBottom: 0, marginBottom: 0}}>
         <Dashboard />
       </main>
       {debugMode && <DebugPanel />}

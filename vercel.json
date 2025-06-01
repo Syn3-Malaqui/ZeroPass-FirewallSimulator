@@ -1,21 +1,18 @@
 {
   "buildCommand": "cd frontend && npm install && npm run build",
-  "installCommand": "cd frontend && npm install",
   "outputDirectory": "frontend/.next",
-  "functions": {
-    "frontend/app/**/*.tsx": {
-      "runtime": "@vercel/next"
-    }
-  },
+  "devCommand": "cd frontend && npm run dev",
+  "installCommand": "cd frontend && npm install",
+  "framework": "nextjs",
   "rewrites": [
     {
-      "source": "/api/backend/:path*",
+      "source": "/api/:path*",
       "destination": "https://zeropass-backend.onrender.com/:path*"
     }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -23,11 +20,11 @@
         },
         {
           "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
+          "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT"
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-User-ID"
         }
       ]
     }

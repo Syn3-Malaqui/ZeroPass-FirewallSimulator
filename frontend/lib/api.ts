@@ -1,18 +1,26 @@
 import axios from 'axios'
-import type { FirewallRuleSet, SimulationRequest, SimulationResult, EvaluationLog } from './store'
+import type { FirewallRuleSet, SimulationRequest, SimulationResult, EvaluationLog, RuleTemplate, ExploitScenario, ScenarioTestResult } from './store'
 import { getCurrentUserId, addUserIdToData, filterByCurrentUser } from './user'
 
 // API client configuration - ensure consistent backend URL
 const getBackendUrl = () => {
-  // Always use the production backend URL for now since it's working
-  const backendUrl = 'https://zeropass-backend.onrender.com'
-  
-  // For local development, you can uncomment this to use localhost:
-  // if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-  //   return 'http://localhost:8000'
-  // }
-  
-  return backendUrl
+  // First check for runtime environment variable
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://zeropass-backend.onrender.com';
+  }
+
+  // Then check for Next.js environment variable
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL;
+  }
+
+  // Default to Render backend in production
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://zeropass-backend.onrender.com';
+  }
+
+  // Local development fallback
+  return 'http://localhost:8000';
 }
 
 const API_BASE_URL = getBackendUrl()
@@ -432,6 +440,122 @@ export const api = {
       throw error
     }
   },
+
+  // Template Management
+  async getTemplates(category?: string): Promise<RuleTemplate[]> {
+    try {
+      const cacheKey = getCacheKey('templates', { category })
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        console.log('📋 Using cached templates data')
+        return cached
+      }
+
+      console.log('🔍 Fetching templates from API...')
+      const params = category ? { category } : {}
+      const response = await apiClient.get('/templates', { params })
+      
+      setCache(cacheKey, response.data)
+      return response.data
+    } catch (error) {
+      console.error('❌ Error fetching templates:', error)
+      throw error
+    }
+  },
+
+  async getTemplate(id: string): Promise<RuleTemplate> {
+    try {
+      const cacheKey = getCacheKey('template', { id })
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        console.log(`📋 Using cached template data for ${id}`)
+        return cached
+      }
+
+      console.log(`🔍 Fetching template ${id} from API...`)
+      const response = await apiClient.get(`/templates/${id}`)
+      
+      setCache(cacheKey, response.data)
+      return response.data
+    } catch (error) {
+      console.error(`❌ Error fetching template ${id}:`, error)
+      throw error
+    }
+  },
+
+  async applyTemplate(templateId: string, ruleSetName: string): Promise<{ message: string; rule_set_id: string }> {
+    try {
+      console.log(`🔧 Applying template ${templateId} with name "${ruleSetName}"...`)
+      const response = await apiClient.post(`/templates/${templateId}/apply`, null, {
+        params: { rule_set_name: ruleSetName }
+      })
+      
+      // Clear caches to force refresh
+      clearUserCache()
+      clearSessionData('rules')
+      
+      return response.data
+    } catch (error) {
+      console.error(`❌ Error applying template ${templateId}:`, error)
+      throw error
+    }
+  },
+
+  // Exploit Scenarios
+  async getScenarios(category?: string): Promise<ExploitScenario[]> {
+    try {
+      const cacheKey = getCacheKey('scenarios', { category })
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        console.log('🎯 Using cached scenarios data')
+        return cached
+      }
+
+      console.log('🔍 Fetching scenarios from API...')
+      const params = category ? { category } : {}
+      const response = await apiClient.get('/scenarios', { params })
+      
+      setCache(cacheKey, response.data)
+      return response.data
+    } catch (error) {
+      console.error('❌ Error fetching scenarios:', error)
+      throw error
+    }
+  },
+
+  async getScenario(id: string): Promise<ExploitScenario> {
+    try {
+      const cacheKey = getCacheKey('scenario', { id })
+      const cached = getFromCache(cacheKey)
+      if (cached) {
+        console.log(`🎯 Using cached scenario data for ${id}`)
+        return cached
+      }
+
+      console.log(`🔍 Fetching scenario ${id} from API...`)
+      const response = await apiClient.get(`/scenarios/${id}`)
+      
+      setCache(cacheKey, response.data)
+      return response.data
+    } catch (error) {
+      console.error(`❌ Error fetching scenario ${id}:`, error)
+      throw error
+    }
+  },
+
+  async testScenario(scenarioId: string, ruleSetId: string): Promise<ScenarioTestResult> {
+    try {
+      console.log(`🧪 Testing scenario ${scenarioId} against rule set ${ruleSetId}...`)
+      const response = await apiClient.post(`/scenarios/${scenarioId}/test`, null, {
+        params: { rule_set_id: ruleSetId }
+      })
+      
+      return response.data
+    } catch (error) {
+      console.error(`❌ Error testing scenario ${scenarioId}:`, error)
+      throw error
+    }
+  }
 }
 
 // Utility functions for validation
