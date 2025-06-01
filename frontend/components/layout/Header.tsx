@@ -1,11 +1,12 @@
 'use client'
 
-import React from 'react'
-import { Shield, Activity, FileText } from 'lucide-react'
+import React, { useState } from 'react'
+import { Shield, Activity, FileText, Menu, X } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 
 export function Header() {
   const { activeTab, setActiveTab } = useAppStore()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const tabs = [
     { id: 'rules' as const, label: 'Rule Builder', icon: Shield },
@@ -19,17 +20,17 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo and Title */}
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-primary-600 rounded-lg">
+            <div className="p-2 bg-blue-600 rounded-lg">
               <Shield className="h-6 w-6 text-white" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">ZeroPass</h1>
-              <p className="text-sm text-gray-500">Firewall Simulator</p>
+              <p className="text-sm text-gray-500 hidden sm:block">Firewall Simulator</p>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <nav className="flex space-x-1">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex space-x-1">
             {tabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
@@ -41,7 +42,7 @@ export function Header() {
                   className={`
                     flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors
                     ${isActive 
-                      ? 'bg-primary-100 text-primary-700 border border-primary-200' 
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }
                   `}
@@ -53,14 +54,67 @@ export function Header() {
             })}
           </nav>
 
-          {/* Status Indicator */}
-          <div className="flex items-center space-x-2">
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+
+          {/* Desktop Status Indicator */}
+          <div className="hidden md:flex items-center space-x-2">
             <div className="flex items-center space-x-1">
-              <div className="h-2 w-2 bg-success-500 rounded-full animate-pulse"></div>
+              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-sm text-gray-600">Online</span>
             </div>
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200">
+            <nav className="py-2 space-y-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.id
+                
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id)
+                      setMobileMenuOpen(false)
+                    }}
+                    className={`
+                      w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors text-left
+                      ${isActive 
+                        ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }
+                    `}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
+              {/* Mobile Status */}
+              <div className="flex items-center justify-center space-x-2 pt-2 border-t border-gray-200">
+                <div className="flex items-center space-x-1">
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-600">Online</span>
+                </div>
+              </div>
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   )

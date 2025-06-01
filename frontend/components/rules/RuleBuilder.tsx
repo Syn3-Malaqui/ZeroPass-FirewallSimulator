@@ -113,18 +113,18 @@ export function RuleBuilder() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="text-center sm:text-left">
           <h2 className="text-2xl font-bold text-gray-900">Firewall Rule Builder</h2>
-          <p className="text-gray-600">Create and manage API gateway firewall rules</p>
+          <p className="text-gray-600 mt-1">Create and manage API gateway firewall rules</p>
         </div>
         
         {!showForm && (
           <button
             onClick={handleCreateNew}
-            className="btn-primary flex items-center space-x-2"
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
             <span>New Rule Set</span>
           </button>
         )}
@@ -132,16 +132,16 @@ export function RuleBuilder() {
 
       {/* Form or List */}
       {showForm ? (
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">
+        <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">
               {editMode ? 'Edit Rule Set' : 'Create New Rule Set'}
             </h3>
-            <p className="card-description">
+            <p className="text-sm text-gray-600 mt-1">
               Configure firewall rules for your API gateway
             </p>
           </div>
-          <div className="card-content">
+          <div>
             <RuleForm
               initialData={currentRuleSet}
               onSave={handleSave}

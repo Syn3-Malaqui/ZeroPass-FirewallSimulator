@@ -73,27 +73,27 @@ export function APISimulator() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="text-center sm:text-left">
         <h2 className="text-2xl font-bold text-gray-900">API Request Simulator</h2>
-        <p className="text-gray-600">Test API requests against your firewall rules</p>
+        <p className="text-gray-600 mt-1">Test API requests against your firewall rules</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Request Form */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">Simulate API Request</h3>
-            <p className="card-description">Configure the request parameters to test</p>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Simulate API Request</h3>
+            <p className="text-sm text-gray-600 mt-1">Configure the request parameters to test</p>
           </div>
           
-          <div className="card-content space-y-4">
+          <div className="space-y-6">
             {/* Rule Set Selection */}
             <div>
-              <label className="label">Rule Set</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Rule Set</label>
               <select 
                 value={selectedRuleSet} 
                 onChange={(e) => setSelectedRuleSet(e.target.value)}
-                className="select"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select a rule set</option>
                 {ruleSets.map((rs) => (
@@ -104,27 +104,27 @@ export function APISimulator() {
 
             {/* Client IP */}
             <div>
-              <label className="label">Client IP Address</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Client IP Address</label>
               <input
                 type="text"
                 value={clientIP}
                 onChange={(e) => setClientIP(e.target.value)}
-                className="input"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., 192.168.1.100"
               />
               {clientIP && !validateIP(clientIP) && (
-                <p className="text-sm text-danger-600 mt-1">Invalid IP address format</p>
+                <p className="text-sm text-red-600 mt-1">Invalid IP address format</p>
               )}
             </div>
 
             {/* HTTP Method & Path */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="label">Method</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Method</label>
                 <select 
                   value={method} 
                   onChange={(e) => setMethod(e.target.value)}
-                  className="select"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
@@ -134,13 +134,13 @@ export function APISimulator() {
                 </select>
               </div>
               
-              <div className="col-span-2">
-                <label className="label">Path</label>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Path</label>
                 <input
                   type="text"
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
-                  className="input"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="/api/endpoint"
                 />
               </div>
@@ -148,11 +148,11 @@ export function APISimulator() {
 
             {/* Headers */}
             <div>
-              <label className="label">Headers (JSON)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Headers (JSON)</label>
               <textarea
                 value={headers}
                 onChange={(e) => setHeaders(e.target.value)}
-                className="textarea"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
                 rows={4}
                 placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'
               />
@@ -160,12 +160,12 @@ export function APISimulator() {
 
             {/* JWT Token */}
             <div>
-              <div className="flex items-center justify-between">
-                <label className="label">JWT Token</label>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">JWT Token</label>
                 <button
                   type="button"
                   onClick={generateSampleJWT}
-                  className="btn-secondary text-xs"
+                  className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                 >
                   Generate Sample
                 </button>
@@ -173,7 +173,7 @@ export function APISimulator() {
               <textarea
                 value={jwtToken}
                 onChange={(e) => setJwtToken(e.target.value)}
-                className="textarea"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
                 rows={3}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               />
@@ -181,12 +181,12 @@ export function APISimulator() {
 
             {/* OAuth Scopes */}
             <div>
-              <label className="label">OAuth2 Scopes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">OAuth2 Scopes</label>
               <input
                 type="text"
                 value={oauthScopes}
                 onChange={(e) => setOauthScopes(e.target.value)}
-                className="input"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="read,write,admin"
               />
               <p className="text-sm text-gray-500 mt-1">Comma-separated list of scopes</p>
@@ -196,52 +196,52 @@ export function APISimulator() {
             <button
               onClick={handleSimulate}
               disabled={!selectedRuleSet || !clientIP}
-              className="btn-primary w-full flex items-center justify-center space-x-2"
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              <Play className="h-4 w-4" />
+              <Play className="h-5 w-5" />
               <span>Simulate Request</span>
             </button>
           </div>
         </div>
 
         {/* Results */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">Simulation Result</h3>
-            <p className="card-description">Response from firewall evaluation</p>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Simulation Result</h3>
+            <p className="text-sm text-gray-600 mt-1">Response from firewall evaluation</p>
           </div>
           
-          <div className="card-content">
+          <div>
             {simulationResult ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {/* Decision */}
                 <div className={`
-                  p-4 rounded-lg border-2 flex items-center space-x-3
+                  p-4 rounded-lg border-2 flex items-start space-x-3
                   ${simulationResult.decision === 'ALLOWED' 
-                    ? 'bg-success-50 border-success-200' 
-                    : 'bg-danger-50 border-danger-200'
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
                   }
                 `}>
                   {simulationResult.decision === 'ALLOWED' ? (
-                    <CheckCircle className="h-6 w-6 text-success-600" />
+                    <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
                   ) : (
-                    <AlertCircle className="h-6 w-6 text-danger-600" />
+                    <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
                   )}
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h4 className={`
-                      font-semibold
+                      font-semibold text-lg
                       ${simulationResult.decision === 'ALLOWED' 
-                        ? 'text-success-800' 
-                        : 'text-danger-800'
+                        ? 'text-green-800' 
+                        : 'text-red-800'
                       }
                     `}>
                       {simulationResult.decision}
                     </h4>
                     <p className={`
-                      text-sm
+                      text-sm mt-1 break-words
                       ${simulationResult.decision === 'ALLOWED' 
-                        ? 'text-success-600' 
-                        : 'text-danger-600'
+                        ? 'text-green-600' 
+                        : 'text-red-600'
                       }
                     `}>
                       {simulationResult.reason}
@@ -253,7 +253,7 @@ export function APISimulator() {
                 {simulationResult.matched_rule && (
                   <div>
                     <h5 className="font-medium text-gray-900 mb-2">Matched Rule</h5>
-                    <p className="text-sm text-gray-600 font-mono bg-gray-50 p-2 rounded">
+                    <p className="text-sm text-gray-600 font-mono bg-gray-50 p-3 rounded-lg border break-all">
                       {simulationResult.matched_rule}
                     </p>
                   </div>
@@ -262,22 +262,23 @@ export function APISimulator() {
                 {/* Evaluation Details */}
                 {simulationResult.evaluation_details.length > 0 && (
                   <div>
-                    <h5 className="font-medium text-gray-900 mb-2">Evaluation Details</h5>
-                    <div className="space-y-1">
+                    <h5 className="font-medium text-gray-900 mb-3">Evaluation Details</h5>
+                    <div className="space-y-2">
                       {simulationResult.evaluation_details.map((detail, index) => (
-                        <p key={index} className="text-sm text-gray-600 flex items-center space-x-2">
-                          <span className="h-1 w-1 bg-gray-400 rounded-full"></span>
-                          <span>{detail}</span>
-                        </p>
+                        <div key={index} className="flex items-start space-x-2 p-2 bg-gray-50 rounded border-l-2 border-blue-200">
+                          <span className="h-1.5 w-1.5 bg-gray-400 rounded-full flex-shrink-0 mt-2"></span>
+                          <span className="text-sm text-gray-600 break-words">{detail}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <RefreshCw className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Run a simulation to see results</p>
+              <div className="text-center py-12 text-gray-500">
+                <RefreshCw className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="text-lg font-medium">Run a simulation to see results</p>
+                <p className="text-sm mt-1">Configure your request and click "Simulate Request"</p>
               </div>
             )}
           </div>

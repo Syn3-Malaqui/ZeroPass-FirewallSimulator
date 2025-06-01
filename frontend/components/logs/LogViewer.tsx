@@ -43,20 +43,20 @@ export function LogViewer() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold">Evaluation Logs</h2>
-        <div className="space-x-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={fetchLogs}
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
           >
             Refresh
           </button>
           <button
             onClick={clearLogs}
             disabled={isLoading}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
           >
             Clear All
           </button>
@@ -64,27 +64,30 @@ export function LogViewer() {
       </div>
 
       {error && (
-        <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
           {error}
         </div>
       )}
 
       {isLoading ? (
-        <div className="text-center p-4">Loading logs...</div>
+        <div className="text-center p-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">Loading logs...</p>
+        </div>
       ) : evaluationLogs.length === 0 ? (
-        <div className="text-center p-8 bg-gray-50 rounded border">
-          No evaluation logs found. Simulate requests to generate logs.
+        <div className="text-center p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <p className="text-gray-600">No evaluation logs found. Simulate requests to generate logs.</p>
         </div>
       ) : (
         <div className="space-y-4">
           {evaluationLogs.map((log, index) => (
-            <div key={index} className="p-4 bg-white rounded shadow">
-              <div className="flex justify-between mb-2">
-                <span className="font-semibold">
+            <div key={index} className="p-4 sm:p-6 bg-white rounded-lg shadow border">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-4">
+                <div className="text-sm font-medium text-gray-900">
                   {new Date(log.timestamp).toLocaleString()}
-                </span>
+                </div>
                 <span
-                  className={`px-2 py-1 rounded text-sm ${
+                  className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
                     log.result.decision === 'ALLOWED'
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
@@ -93,30 +96,41 @@ export function LogViewer() {
                   {log.result.decision}
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Rule Set:</span> {log.rule_set_id}
+                  <span className="text-gray-500 font-medium">Rule Set:</span>
+                  <div className="text-gray-900 break-all">{log.rule_set_id}</div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Client IP:</span> {log.client_ip}
+                  <span className="text-gray-500 font-medium">Client IP:</span>
+                  <div className="text-gray-900">{log.client_ip}</div>
                 </div>
               </div>
-              <div className="mb-2">
-                <span className="text-gray-600">Reason:</span> {log.result.reason}
+
+              <div className="mb-4">
+                <span className="text-gray-500 font-medium text-sm">Reason:</span>
+                <div className="text-gray-900 text-sm mt-1 break-words">{log.result.reason}</div>
               </div>
+
               {log.result.matched_rule && (
-                <div className="mb-2">
-                  <span className="text-gray-600">Matched Rule:</span>{' '}
-                  {log.result.matched_rule}
+                <div className="mb-4">
+                  <span className="text-gray-500 font-medium text-sm">Matched Rule:</span>
+                  <div className="text-gray-900 text-sm mt-1 font-mono bg-gray-50 px-2 py-1 rounded">
+                    {log.result.matched_rule}
+                  </div>
                 </div>
               )}
-              <div className="mt-3 border-t pt-2">
-                <div className="font-semibold mb-1">Evaluation Details:</div>
-                <ul className="list-disc list-inside pl-2 text-sm text-gray-700">
+
+              <div className="border-t pt-4">
+                <div className="font-medium text-sm text-gray-700 mb-2">Evaluation Details:</div>
+                <div className="space-y-1">
                   {log.result.evaluation_details.map((detail, i) => (
-                    <li key={i}>{detail}</li>
+                    <div key={i} className="text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded border-l-2 border-blue-200 break-words">
+                      {detail}
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             </div>
           ))}
