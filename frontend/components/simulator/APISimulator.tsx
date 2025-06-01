@@ -71,7 +71,7 @@ export function APISimulator() {
   }
 
   return (
-    <div className="transform scale-90 origin-top space-y-5 animate-slideUp">
+    <div className="space-y-5 animate-slideUp">
       {/* Header */}
       <div className="text-center sm:text-left">
         <h2 className="text-xl font-bold text-gray-900">API Request Simulator</h2>

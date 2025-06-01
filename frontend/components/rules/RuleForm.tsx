@@ -165,7 +165,7 @@ export function RuleForm({ initialData, onSave, onCancel, isLoading }: Props) {
   })
 
   return (
-    <div className="transform scale-90 origin-top max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Section Navigation - Mobile Responsive */}
         <div className="w-full overflow-x-auto">

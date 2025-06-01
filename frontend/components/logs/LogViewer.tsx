@@ -42,7 +42,7 @@ export function LogViewer() {
   }, [])
 
   return (
-    <div className="transform scale-90 origin-top space-y-4 animate-slideUp">
+    <div className="space-y-4 animate-slideUp">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Evaluation Logs</h2>

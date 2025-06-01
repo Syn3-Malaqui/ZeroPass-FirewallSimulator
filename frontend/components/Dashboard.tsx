@@ -27,6 +27,7 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Main Content Container with Consistent Scaling */}
       <div className="transform scale-90 origin-top transition-all duration-300">
         {/* Error Display */}
         {error && (
@@ -46,17 +47,32 @@ export function Dashboard() {
         )}
 
         {/* Tab Content with smooth transitions */}
-        <div className="min-h-[70vh] transition-all duration-500 ease-in-out">
-          <div className={`transition-all duration-300 ${activeTab === 'rules' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute pointer-events-none'}`}>
-            {activeTab === 'rules' && <RuleBuilder />}
+        <div className="min-h-[70vh] relative">
+          {/* Rules Tab */}
+          <div className={`transition-all duration-300 ${
+            activeTab === 'rules' 
+              ? 'opacity-100 translate-y-0 relative' 
+              : 'opacity-0 translate-y-4 absolute inset-0 pointer-events-none'
+          }`}>
+            <RuleBuilder />
           </div>
           
-          <div className={`transition-all duration-300 ${activeTab === 'simulator' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute pointer-events-none'}`}>
-            {activeTab === 'simulator' && <APISimulator />}
+          {/* Simulator Tab */}
+          <div className={`transition-all duration-300 ${
+            activeTab === 'simulator' 
+              ? 'opacity-100 translate-y-0 relative' 
+              : 'opacity-0 translate-y-4 absolute inset-0 pointer-events-none'
+          }`}>
+            <APISimulator />
           </div>
           
-          <div className={`transition-all duration-300 ${activeTab === 'logs' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute pointer-events-none'}`}>
-            {activeTab === 'logs' && <LogViewer />}
+          {/* Logs Tab */}
+          <div className={`transition-all duration-300 ${
+            activeTab === 'logs' 
+              ? 'opacity-100 translate-y-0 relative' 
+              : 'opacity-0 translate-y-4 absolute inset-0 pointer-events-none'
+          }`}>
+            <LogViewer />
           </div>
         </div>
       </div>

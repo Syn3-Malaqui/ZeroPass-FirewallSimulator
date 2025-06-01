@@ -1,17 +1,17 @@
 import axios from 'axios'
 import type { FirewallRuleSet, SimulationRequest, SimulationResult, EvaluationLog } from './store'
 
-// API client configuration - force HTTPS for production
+// API client configuration - ensure consistent backend URL
 const getBackendUrl = () => {
-  if (typeof window !== 'undefined') {
-    // Client-side: Check if we're on localhost or production
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    if (isLocalhost) {
-      return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-    }
-  }
-  // Always use production backend URL for deployed version
-  return process.env.NEXT_PUBLIC_BACKEND_URL || 'https://zeropass-backend.onrender.com'
+  // Always use the production backend URL for now since it's working
+  const backendUrl = 'https://zeropass-backend.onrender.com'
+  
+  // For local development, you can uncomment this to use localhost:
+  // if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  //   return 'http://localhost:8000'
+  // }
+  
+  return backendUrl
 }
 
 const API_BASE_URL = getBackendUrl()
@@ -29,7 +29,7 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  timeout: 15000, // Increased timeout for deployment
+  timeout: 20000, // Increased timeout for Render cold starts
   withCredentials: false, // Disable credentials for CORS
 })
 
@@ -69,7 +69,13 @@ apiClient.interceptors.response.use(
       // Request was made but no response received
       console.error('No response received. Network or CORS issue likely.')
       console.error('Request details:', error.request)
-      throw new Error('Network Error: Unable to connect to the server. Please check if the backend is running and CORS is configured correctly.')
+      
+      // Check if it's a timeout
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timeout: The server took too long to respond. This may be due to a cold start on Render.')
+      }
+      
+      throw new Error('Network Error: Unable to connect to the server. The backend may be starting up (cold start).')
     } else {
       // Something else happened
       throw new Error(`Request Error: ${error.message}`)

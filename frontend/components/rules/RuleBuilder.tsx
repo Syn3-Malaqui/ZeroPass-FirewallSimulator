@@ -111,7 +111,7 @@ export function RuleBuilder() {
   }
 
   return (
-    <div className="transform scale-90 origin-top space-y-5">
+    <div className="space-y-5 animate-slideUp">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="text-center sm:text-left">
