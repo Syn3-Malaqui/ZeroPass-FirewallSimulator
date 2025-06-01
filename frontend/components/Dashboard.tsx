@@ -16,4 +16,6 @@ export function Dashboard() {
       {activeTab === 'logs' && <LogViewer />}
     </div>
   )
-} 
+}
+
+// Fixed Vercel deployment issue by using LogViewer instead of EvaluationLogs 
