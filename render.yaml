@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: zeropass-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://zeropass-firewall-simulator.vercel.app
+      - key: PYTHON_VERSION
+        value: 3.9.0
+    plan: free
+    healthCheckPath: /api/health 

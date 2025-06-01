@@ -1,12 +1,12 @@
 {
-  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "installCommand": "cd frontend && npm install",
+  "outputDirectory": "frontend/.next",
   "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
   "rewrites": [
     {
       "source": "/api/backend/:path*",
-      "destination": "https://$NEXT_PUBLIC_BACKEND_URL/:path*"
+      "destination": "https://zeropass-backend.onrender.com/:path*"
     }
   ],
   "headers": [
@@ -29,6 +29,6 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_BACKEND_URL": "YOUR_DEPLOYED_BACKEND_URL"
+    "NEXT_PUBLIC_BACKEND_URL": "https://zeropass-backend.onrender.com"
   }
 } 
