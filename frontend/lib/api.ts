@@ -426,11 +426,13 @@ export const api = {
     const userRequest = addUserIdToData(request)
     console.log('🔒 Simulating request for user:', getCurrentUserId())
     
+    // Store the original rule set ID for reference
+    const originalRuleSetId = request.rule_set_id
+    let ruleSetModified = false
+    
     // Verify rule set exists first
     try {
-      // First clear cache to ensure fresh data
-      this.clearCache()
-      
+      // Clear cache but don't clear all rule sets - just refresh data
       console.log(`Verifying rule set ${request.rule_set_id} exists before simulation...`)
       const ruleSets = await this.getRuleSets()
       
@@ -442,6 +444,7 @@ export const api = {
         const firstRuleSet = ruleSets[0]
         console.log(`⚠️ Requested rule set ${request.rule_set_id} not found. Auto-selecting ${firstRuleSet.id} instead.`)
         userRequest.rule_set_id = firstRuleSet.id
+        ruleSetModified = true
       } else if (!ruleSetExists && ruleSets.length === 0) {
         // If no rule sets exist at all, try to create one
         console.log('⚠️ No rule sets found, creating one automatically...')
@@ -449,6 +452,7 @@ export const api = {
           const newRuleSetId = await this.ensureRuleSetExists()
           console.log(`✅ Created new rule set: ${newRuleSetId}`)
           userRequest.rule_set_id = newRuleSetId
+          ruleSetModified = true
         } catch (createError) {
           console.error('Failed to create rule set:', createError)
           throw new Error('No valid rule sets available. Please create a rule set first.')
@@ -466,6 +470,15 @@ export const api = {
         const result = response.data
         
         // Add user ID to result
+        if (ruleSetModified) {
+          // Add a note about rule set substitution
+          const substitutionNote = `Note: Originally requested rule set (${originalRuleSetId}) was not found. Using rule set ${userRequest.rule_set_id} instead.`
+          if (!result.evaluation_details) {
+            result.evaluation_details = []
+          }
+          result.evaluation_details.unshift(substitutionNote)
+        }
+        
         return addUserIdToData(result)
       } catch (error: any) {
         // If it's a 404 (endpoint not found), try the fallback approach
@@ -490,6 +503,16 @@ export const api = {
             if (fallbackResponse.ok) {
               console.log('✅ Fallback to /api/simulate successful')
               const result = await fallbackResponse.json()
+              
+              if (ruleSetModified) {
+                // Add a note about rule set substitution
+                const substitutionNote = `Note: Originally requested rule set (${originalRuleSetId}) was not found. Using rule set ${userRequest.rule_set_id} instead.`
+                if (!result.evaluation_details) {
+                  result.evaluation_details = []
+                }
+                result.evaluation_details.unshift(substitutionNote)
+              }
+              
               return addUserIdToData(result)
             }
           } catch (fallbackError) {
@@ -500,17 +523,18 @@ export const api = {
           try {
             console.log('🔄 Attempting direct rule evaluation as fallback...')
             
-            // Get a fresh list of rule sets
-            await this.clearCache()
+            // Get a fresh list of rule sets but without clearing cache - just use current state
             const ruleSets = await this.getRuleSets()
             
             // Look for the rule set again or pick a valid one
             let ruleSet = ruleSets.find(rs => rs.id === userRequest.rule_set_id)
+            let autoSelectedRuleSet = false
             
             if (!ruleSet && ruleSets.length > 0) {
               // If requested rule set still not found, use the first available one
               ruleSet = ruleSets[0]
               console.log(`Auto-selecting rule set: ${ruleSet.id}`)
+              autoSelectedRuleSet = true
             }
             
             if (!ruleSet) {
@@ -529,6 +553,13 @@ export const api = {
                 `Rule set default action: ${ruleSet.default_action}`
               ],
               userId: getCurrentUserId()
+            }
+            
+            // Add rule set substitution note if needed
+            if (ruleSetModified || autoSelectedRuleSet) {
+              simplifiedResult.evaluation_details.unshift(
+                `Note: Originally requested rule set (${originalRuleSetId}) was not found. Using rule set ${ruleSet.id} instead.`
+              )
             }
             
             // Apply some basic rule evaluation logic for improved simulation
@@ -658,7 +689,8 @@ export const api = {
       const ruleSets = await this.getRuleSets()
       
       if (ruleSets.length > 0) {
-        // Return the ID of the first rule set
+        // Return the ID of the first rule set - but never delete existing ones
+        console.log('Using existing rule set:', ruleSets[0].id)
         return ruleSets[0].id
       }
       

@@ -45,13 +45,19 @@ export function APISimulator() {
     }
     
     try {
-      // Clear cache to ensure fresh data
-      api.clearCache()
+      // Clear cache but don't risk deleting custom rule sets
+      api.clearCachePattern('templates')
+      api.clearCachePattern('scenarios')
+      
       const freshRuleSets = await api.getRuleSets()
-      setRuleSets(freshRuleSets)
+      
+      // Only update if we get rule sets back - never replace with empty array
+      if (freshRuleSets.length > 0) {
+        setRuleSets(freshRuleSets)
+      }
       
       if (showFeedback) {
-        setError('✅ Rule sets refreshed successfully')
+        setError(`✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`)
         setTimeout(() => setError(undefined), 3000)
       }
     } catch (error) {
@@ -94,22 +100,18 @@ export function APISimulator() {
 
       console.log(`Starting simulation with rule set: ${selectedRuleSet}`)
       
-      // First verify that the rule set exists
+      // First verify that the rule set exists but don't replace user's selection automatically
       let validRuleSetId = selectedRuleSet
+      let ruleSetWarning = false
+      
       try {
+        // Get rule sets without clearing cache to avoid data loss
         const availableRuleSets = await api.getRuleSets()
         if (!availableRuleSets.some(rs => rs.id === selectedRuleSet)) {
           if (availableRuleSets.length > 0) {
-            // Auto-select the first rule set if the selected one doesn't exist
-            validRuleSetId = availableRuleSets[0].id
-            console.log(`⚠️ Selected rule set doesn't exist, using ${validRuleSetId} instead`)
-            setSelectedRuleSet(validRuleSetId)
-            request.rule_set_id = validRuleSetId
-            
-            // Show a warning but continue
-            setError(`⚠️ Selected rule set not found. Automatically switched to ${availableRuleSets[0].name}.`)
-          } else {
-            throw new Error('No rule sets available. Please create a rule set first.')
+            // Flag for warning but don't auto-change - the API will handle it
+            ruleSetWarning = true
+            console.log(`⚠️ Warning: Selected rule set may not exist on server`)
           }
         }
       } catch (verifyError) {
@@ -117,16 +119,28 @@ export function APISimulator() {
         // Continue anyway, as the API client has its own fallback
       }
       
-      // Clear any temporary warnings after 3 seconds
-      setTimeout(() => {
-        setError(undefined)
-      }, 3000)
+      if (ruleSetWarning) {
+        setError(`⚠️ Warning: Selected rule set may not exist on the server. Simulation will use a fallback.`)
+        // Don't auto-clear this warning
+      }
 
       const result = await api.simulate(request)
       
       // Check if this was a fallback evaluation
       if (result.evaluation_details.some(detail => detail.includes('fallback'))) {
         setError(`⚠️ Using fallback evaluation. The backend '/simulate' endpoint might be unavailable.`)
+      }
+      
+      // If rule set was substituted, update the selected rule set in the UI
+      const substitutionNote = result.evaluation_details.find(detail => detail.includes('Originally requested rule set'))
+      if (substitutionNote) {
+        // Try to extract the used rule set ID from the note
+        const match = substitutionNote.match(/Using rule set ([a-f0-9-]+) instead/)
+        if (match && match[1]) {
+          const actualRuleSetId = match[1]
+          console.log(`Updating selected rule set to ${actualRuleSetId} based on substitution`)
+          setSelectedRuleSet(actualRuleSetId)
+        }
       }
       
       setSimulationResult(result)
@@ -312,6 +326,22 @@ export function APISimulator() {
           <div className="min-h-[400px] flex items-center justify-center">
             {simulationResult ? (
               <div className="w-full space-y-5 animate-fadeIn">
+                {/* Fallback Warning */}
+                {simulationResult.evaluation_details.some(detail => detail.includes('fallback')) && (
+                  <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-sm">
+                    <strong>⚠️ Fallback Evaluation:</strong> This is a simplified evaluation because the backend simulation
+                    endpoint is unavailable. Some complex rules may not be evaluated correctly.
+                  </div>
+                )}
+                
+                {/* Rule Set Substitution Warning */}
+                {simulationResult.evaluation_details.some(detail => detail.includes('Originally requested rule set')) && (
+                  <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 text-sm">
+                    <strong>ℹ️ Rule Set Substitution:</strong> The originally requested rule set was not found.
+                    The simulator is using an alternative rule set instead.
+                  </div>
+                )}
+
                 {/* Decision */}
                 <div className={`
                   p-4 rounded-xl border-2 flex items-start space-x-3 transition-all duration-300
