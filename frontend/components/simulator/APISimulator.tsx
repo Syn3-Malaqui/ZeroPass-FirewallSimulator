@@ -50,15 +50,13 @@ export function APISimulator() {
       setSelectedRuleSet(ruleSets[0].id)
     }
     
-    // If we have no rule sets but had a previously selected one, show recovery
-    if (ruleSets.length === 0 && lastSelectedRuleSet) {
-      setShowRecovery(true)
-      setNotification({
-        message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
-        type: 'warning'
-      })
-    } else {
-      setShowRecovery(false)
+    // If we have a selected rule set, make sure it still exists
+    if (selectedRuleSet && ruleSets.length > 0) {
+      const ruleSetExists = ruleSets.some(rs => rs.id === selectedRuleSet)
+      if (!ruleSetExists) {
+        // Selected rule set no longer exists, select the first available one
+        setSelectedRuleSet(ruleSets[0].id)
+      }
     }
     
     // Update last selected rule set if we have a selection
@@ -73,79 +71,45 @@ export function APISimulator() {
     }
     
     try {
-      // Force a complete refresh by clearing more aggressively
-      // But first check if we need to save our current rule sets as backup
+      // Save current rule sets to preserve them
       const currentRuleSets = [...ruleSets]
       
-      // Clear rule cache but be careful to keep a backup
-      api.clearCache(true) // Use thorough cache clearing to force a complete refresh
-      
+      // Use cache-busting but don't auto-create anything
       console.log('Fetching fresh rule sets...')
       const freshRuleSets = await api.getRuleSets(true) // Force fresh data
       
-      // Only update if we get rule sets back
       if (freshRuleSets.length > 0) {
         console.log(`Successfully fetched ${freshRuleSets.length} fresh rule sets`)
         setRuleSets(freshRuleSets)
         
-        // If previously had no rule sets, update notification
-        if (ruleSets.length === 0) {
-          setNotification({
-            message: `✅ Rule sets loaded successfully (${freshRuleSets.length} found)`,
-            type: 'success'
-          })
-          setTimeout(() => setNotification(null), 3000)
-        } else {
-          // Success notification
+        if (showFeedback) {
           setNotification({
             message: `✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`,
             type: 'success'
           })
           setTimeout(() => setNotification(null), 3000)
         }
-      } else if (freshRuleSets.length === 0 && currentRuleSets.length > 0) {
-        // We had rules but got none back - this is probably a backend issue
+      } else if (currentRuleSets.length > 0) {
+        // We had rule sets but got none - keep using what we have
+        console.log('Server returned no rule sets. Keeping current rule sets.')
+        // Don't clear the current rule sets - preserve them
         
-        console.log('Received empty rule sets, trying to force backend re-sync...')
-        
-        // Try to force the backend to create a new rule set
-        try {
-          const newRuleSetId = await api.ensureRuleSetExists()
-          console.log('Created fallback rule set:', newRuleSetId)
-          
-          // Now try fetching rule sets again
-          const recoveredRuleSets = await api.getRuleSets()
-          
-          if (recoveredRuleSets.length > 0) {
-            setRuleSets(recoveredRuleSets)
-            setNotification({
-              message: `✅ Created a new rule set since previous ones were unavailable`,
-              type: 'success'
-            })
-            setTimeout(() => setNotification(null), 3000)
-          } else {
-            // Show recovery option
-            setShowRecovery(true)
-            setNotification({
-              message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
-              type: 'warning'
-            })
-          }
-        } catch (ensureError) {
-          console.error('Failed to ensure rule set exists:', ensureError)
-          setShowRecovery(true)
+        if (showFeedback) {
           setNotification({
-            message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
+            message: `⚠️ Server returned no rule sets. Using cached rule sets.`,
             type: 'warning'
           })
+          setTimeout(() => setNotification(null), 5000)
         }
-      } else if (freshRuleSets.length === 0) {
-        // Never had any rule sets - just show normal message
-        setNotification({
-          message: `ℹ️ No rule sets found. Create rule sets in the Rule Builder tab first.`,
-          type: 'warning'
-        })
-        setTimeout(() => setNotification(null), 5000)
+      } else {
+        // Truly no rule sets
+        if (showFeedback) {
+          setNotification({
+            message: `ℹ️ No rule sets found. Create rule sets in the Rule Builder tab first.`,
+            type: 'warning'
+          })
+          setTimeout(() => setNotification(null), 5000)
+        }
       }
     } catch (error) {
       console.error('Error refreshing rule sets:', error)

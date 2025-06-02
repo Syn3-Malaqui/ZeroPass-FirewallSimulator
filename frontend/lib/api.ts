@@ -153,12 +153,18 @@ function clearUserCache(): void {
   clearSessionData() // Clear all session data for this user
 }
 
-function invalidateCache(pattern?: string): void {
+function invalidateCache(pattern?: string, keysToPreserve: string[] = []): void {
   const cache = getUserCache()
   if (pattern) {
     // Clear specific pattern using Array.from to handle iterators properly
     const keys = Array.from(cache.keys())
     keys.forEach(key => {
+      // Skip keys that should be preserved
+      if (keysToPreserve.some(preservePattern => key.includes(preservePattern))) {
+        console.log(`Preserving cache key during pattern invalidation: ${key}`)
+        return
+      }
+      
       if (key.includes(pattern)) {
         // Special handling for rules - don't clear if it's our only data source
         if (key.includes('rules') && pattern.includes('rules')) {
@@ -184,25 +190,30 @@ function invalidateCache(pattern?: string): void {
       }
     })
   } else {
-    // Safer full cache clear - preserve rule sets
-    const ruleSetCacheKey = getCacheKey('rules')
-    const cachedRuleSets = cache.get(ruleSetCacheKey)
+    // Safer full cache clear - preserve rule sets and other protected keys
+    const keysToSave = new Map<string, any>()
+    
+    // First gather all keys to preserve with their data
+    if (keysToPreserve.length > 0) {
+      Array.from(cache.keys()).forEach(key => {
+        if (keysToPreserve.some(pattern => key.includes(pattern))) {
+          keysToSave.set(key, cache.get(key))
+          console.log(`Preserving key during full cache clear: ${key}`)
+        }
+      })
+    }
     
     // Clear all cache
     cache.clear()
     
-    // Restore rule sets if they existed
-    if (cachedRuleSets && Array.isArray(cachedRuleSets.data) && cachedRuleSets.data.length > 0) {
-      console.log(`Preserving ${cachedRuleSets.data.length} cached rule sets during cache clear`)
-      cache.set(ruleSetCacheKey, {
-        data: cachedRuleSets.data,
-        timestamp: Date.now() - CACHE_DURATION + 5000 // Mark as almost expired
-      })
-    }
+    // Restore preserved keys
+    keysToSave.forEach((value, key) => {
+      cache.set(key, value)
+    })
   }
   
   // More selective session storage clearing
-  clearSessionData(pattern)
+  clearSessionData(pattern, keysToPreserve)
 }
 
 // Session-specific storage to prevent cross-session data leaks
@@ -258,7 +269,7 @@ function getSessionData(key: string): any | null {
   }
 }
 
-function clearSessionData(key?: string): void {
+function clearSessionData(key?: string, keysToPreserve: string[] = []): void {
   if (typeof window === 'undefined') return
   
   const userId = getCurrentUserId()
@@ -272,6 +283,12 @@ function clearSessionData(key?: string): void {
       for (let i = 0; i < sessionStorage.length; i++) {
         const storageKey = sessionStorage.key(i)
         if (storageKey && storageKey.startsWith(`${SESSION_STORAGE_PREFIX}${userId}_`) && storageKey.includes(pattern)) {
+          // Skip keys that should be preserved
+          if (keysToPreserve.some(preservePattern => storageKey.includes(preservePattern))) {
+            console.log(`Preserving session key during pattern clear: ${storageKey}`)
+            continue
+          }
+          
           // Special handling for rules - don't clear if they might be needed
           if (storageKey.includes('rules')) {
             try {
@@ -298,6 +315,12 @@ function clearSessionData(key?: string): void {
     } else {
       // Clear specific key (but be careful with rules)
       const sessionKey = getSessionStorageKey(key)
+      
+      // Skip keys that should be preserved
+      if (keysToPreserve.some(pattern => sessionKey.includes(pattern))) {
+        console.log(`Preserving session key during direct clear: ${sessionKey}`)
+        return
+      }
       
       if (sessionKey.includes('rules')) {
         try {
@@ -327,6 +350,12 @@ function clearSessionData(key?: string): void {
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i)
       if (key && key.startsWith(`${SESSION_STORAGE_PREFIX}${userId}_`)) {
+        // Skip keys that should be preserved
+        if (keysToPreserve.some(pattern => key.includes(pattern))) {
+          keysToKeep.push(key)
+          continue
+        }
+        
         if (key.includes('rules')) {
           try {
             const storedData = sessionStorage.getItem(key)
@@ -355,38 +384,47 @@ function clearSessionData(key?: string): void {
 }
 
 export const api = {
-  // Clear user cache manually with more thorough option
-  clearCache: (thorough = false) => {
-    if (thorough) {
-      // Save current rule sets before clearing
-      const rules = userCache.get(getCurrentUserId())?.get('rules')?.data
-      
-      // Clear everything
-      clearUserCache()
-      invalidateCache()
-      
-      // If we have rule sets, restore them with a shorter expiration
-      if (rules && Array.isArray(rules) && rules.length > 0) {
-        console.log(`Preserving ${rules.length} rule sets during thorough cache clear`)
+  // Clear user cache manually with more conservative approach
+  clearCache: (preserveRuleSets = true) => {
+    // First save rule sets if needed
+    let savedRuleSets = null
+    if (preserveRuleSets) {
+      try {
+        const cache = getUserCache()
+        const rulesKey = Array.from(cache.keys()).find(k => k.includes('rules'))
+        if (rulesKey) {
+          savedRuleSets = cache.get(rulesKey)?.data
+          if (savedRuleSets && Array.isArray(savedRuleSets) && savedRuleSets.length > 0) {
+            console.log(`Preserving ${savedRuleSets.length} rule sets during cache clear`)
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to preserve rule sets during cache clear:', e)
+      }
+    }
+    
+    // Clear everything except protected keys
+    const keysToPreserve = preserveRuleSets ? ['rules'] : []
+    invalidateCache(undefined, keysToPreserve)
+    
+    // Restore rule sets if we saved them
+    if (savedRuleSets && Array.isArray(savedRuleSets) && savedRuleSets.length > 0) {
+      try {
         const cache = getUserCache()
         cache.set('rules', {
-          data: rules,
-          timestamp: Date.now() - CACHE_DURATION + 2000 // Almost expired
+          data: savedRuleSets,
+          timestamp: Date.now()
         })
+      } catch (e) {
+        console.warn('Failed to restore rule sets after cache clear:', e)
       }
-      
-      // Clear any potential browser-level caching using cache-busting in future requests
-      cachedBackendUrl = null // Force re-evaluation of backend URL
-    } else {
-      // Normal clear
-      clearUserCache()
-      invalidateCache()
     }
   },
 
   // Clear specific cache patterns
   clearCachePattern: (pattern: string) => {
-    invalidateCache(pattern)
+    // Never clear rules, even with patterns
+    invalidateCache(pattern, ['rules'])
   },
 
   // Export getBackendUrl function
@@ -486,46 +524,9 @@ export const api = {
       const ruleSets = await response.json()
       console.log(`Successfully fetched ${ruleSets.length} rule sets`)
       
-      // If we received an empty array but have cached data with rules, something might be wrong
+      // If we received an empty array but have cached data with rules, return cached data
       if (ruleSets.length === 0 && cached && Array.isArray(cached) && cached.length > 0) {
-        console.warn('Received empty rule sets from API but have cached rules - potential session issue')
-        
-        // If not already forcing fresh, try one more time with cache-busting
-        if (!forceFresh) {
-          console.log('Attempting recovery fetch with aggressive cache-busting...')
-          return this.getRuleSets(true) // Call recursively with forceFresh=true
-        }
-        
-        // If we're already forcing fresh and still got empty, try to ensure a rule set exists
-        console.log('Attempting to create a fallback rule set...')
-        try {
-          const newRuleSetId = await this.ensureRuleSetExists()
-          console.log(`Created fallback rule set: ${newRuleSetId}`)
-          
-          // Try once more with the new rule set
-          const finalResponse = await fetch(`${getBackendUrl()}/rules?_final=true&_cb=${Date.now()}`, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'X-User-ID': getCurrentUserId(),
-              'Cache-Control': 'no-cache, no-store, must-revalidate'
-            }
-          })
-          
-          if (finalResponse.ok) {
-            const finalRuleSets = await finalResponse.json()
-            if (finalRuleSets.length > 0) {
-              console.log(`Final recovery successful: found ${finalRuleSets.length} rule sets`)
-              setCache(cacheKey, finalRuleSets)
-              return finalRuleSets
-            }
-          }
-        } catch (recoveryError) {
-          console.error('Final recovery attempt failed:', recoveryError)
-        }
-        
-        // If all recovery failed but we have cached data, use it
-        console.log('Using cached rule sets after all recovery attempts failed')
+        console.warn('Received empty rule sets from API but have cached rules - using cached data')
         return cached
       }
       
@@ -881,12 +882,12 @@ export const api = {
   async ensureRuleSetExists(): Promise<string> {
     try {
       // First check if any rule sets exist
-      const ruleSets = await this.getRuleSets()
+      const existingRuleSets = await this.getRuleSets()
       
-      if (ruleSets.length > 0) {
+      if (existingRuleSets.length > 0) {
         // Return the ID of the first rule set - but never delete existing ones
-        console.log('Using existing rule set:', ruleSets[0].id)
-        return ruleSets[0].id
+        console.log('Using existing rule set:', existingRuleSets[0].id)
+        return existingRuleSets[0].id
       }
       
       // No rule sets exist, create one from a template
@@ -899,7 +900,7 @@ export const api = {
       
       // Use the first template
       const template = templates[0]
-      const ruleSetName = `Auto-created Rule Set (${new Date().toLocaleTimeString()})`
+      const ruleSetName = `New Rule Set (${new Date().toLocaleTimeString()})`
       
       const result = await this.applyTemplate(template.id, ruleSetName)
       console.log('Created new rule set:', result)
@@ -915,12 +916,16 @@ export const api = {
     try {
       console.log(`Applying template ${templateId} with name ${ruleSetName}`)
       
+      // Before applying template, make sure we have the current rule sets cached
+      const currentRuleSets = await this.getRuleSets()
+      
       const response = await fetch(`${getBackendUrl()}/templates/${templateId}/apply?rule_set_name=${encodeURIComponent(ruleSetName)}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'X-User-ID': getCurrentUserId()
+          'X-User-ID': getCurrentUserId(),
+          'Cache-Control': 'no-cache'
         }
       })
       
@@ -932,9 +937,40 @@ export const api = {
       
       const result = await response.json()
       
-      // Clear caches to force refresh
-      clearUserCache()
-      clearSessionData('rules')
+      // Update cache without clearing existing rule sets
+      // Get fresh rule sets but don't clear cache first
+      try {
+        const freshRuleSets = await fetch(`${getBackendUrl()}/rules?_cb=${Date.now()}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'X-User-ID': getCurrentUserId(),
+            'Cache-Control': 'no-cache'
+          }
+        }).then(res => res.json())
+        
+        // If we got rule sets back, merge with existing rule sets
+        if (freshRuleSets && Array.isArray(freshRuleSets) && freshRuleSets.length > 0) {
+          const newRuleSetId = result.rule_set_id
+          
+          // Find newly created rule set
+          const newRuleSet = freshRuleSets.find(rs => rs.id === newRuleSetId)
+          
+          if (newRuleSet) {
+            // Update cache by adding the new rule set to existing ones
+            const mergedRuleSets = [...currentRuleSets]
+            // Add new rule set only if it doesn't already exist
+            if (!mergedRuleSets.some(rs => rs.id === newRuleSetId)) {
+              mergedRuleSets.push(newRuleSet)
+            }
+            
+            // Update cache
+            setCache(getCacheKey('rules'), mergedRuleSets)
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to update rule sets cache after template application:', error)
+      }
       
       return result
     } catch (error) {
