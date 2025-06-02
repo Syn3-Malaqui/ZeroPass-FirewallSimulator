@@ -25,6 +25,7 @@ export function APISimulator() {
   const [jwtToken, setJwtToken] = useState('')
   const [oauthScopes, setOauthScopes] = useState('read,write')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'warning'} | null>(null)
 
   // Periodically refresh rule sets to prevent stale data
   useEffect(() => {
@@ -57,12 +58,18 @@ export function APISimulator() {
       }
       
       if (showFeedback) {
-        setError(`✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`)
-        setTimeout(() => setError(undefined), 3000)
+        setNotification({
+          message: `✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`,
+          type: 'success'
+        })
+        setTimeout(() => setNotification(null), 3000)
       }
     } catch (error) {
       if (showFeedback) {
-        setError(`Failed to refresh rule sets: ${handleAPIError(error)}`)
+        setNotification({
+          message: `Failed to refresh rule sets: ${handleAPIError(error)}`,
+          type: 'error'
+        })
       }
     } finally {
       if (showFeedback) {
@@ -73,7 +80,10 @@ export function APISimulator() {
 
   const handleSimulate = async () => {
     if (!selectedRuleSet) {
-      setError('Please select a rule set')
+      setNotification({
+        message: 'Please select a rule set',
+        type: 'error'
+      })
       return
     }
 
@@ -120,7 +130,10 @@ export function APISimulator() {
       }
       
       if (ruleSetWarning) {
-        setError(`⚠️ Warning: Selected rule set may not exist on the server. Simulation will use a fallback.`)
+        setNotification({
+          message: `⚠️ Warning: Selected rule set may not exist on the server. Simulation will use a fallback.`,
+          type: 'warning'
+        })
         // Don't auto-clear this warning
       }
 
@@ -128,7 +141,10 @@ export function APISimulator() {
       
       // Check if this was a fallback evaluation
       if (result.evaluation_details.some(detail => detail.includes('fallback'))) {
-        setError(`⚠️ Using fallback evaluation. The backend '/simulate' endpoint might be unavailable.`)
+        setNotification({
+          message: `⚠️ Using fallback evaluation. The backend '/simulate' endpoint might be unavailable.`,
+          type: 'warning'
+        })
       }
       
       // If rule set was substituted, update the selected rule set in the UI
@@ -146,7 +162,10 @@ export function APISimulator() {
       setSimulationResult(result)
       addToHistory(result)
     } catch (error) {
-      setError(handleAPIError(error))
+      setNotification({
+        message: handleAPIError(error),
+        type: 'error'
+      })
     } finally {
       setLoading(false)
     }
@@ -168,6 +187,17 @@ export function APISimulator() {
         <h2 className="text-xl font-bold text-gray-900">API Request Simulator</h2>
         <p className="text-gray-600 mt-1">Test API requests against your firewall rules</p>
       </div>
+
+      {/* Notification Banner */}
+      {notification && (
+        <div className={`px-4 py-3 rounded-lg border animate-fadeIn ${
+          notification.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' :
+          notification.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+          'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          <p className="text-sm">{notification.message}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Request Form */}
