@@ -5,6 +5,7 @@ import { Play, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
 import { useAppStore, useRuleSets } from '@/lib/store'
 import { api, handleAPIError, generateJWTToken, validateIP } from '@/lib/api'
 import type { SimulationRequest } from '@/lib/store'
+import { RuleSetRecovery } from '../RuleSetRecovery'
 
 export function APISimulator() {
   const ruleSets = useRuleSets()
@@ -26,6 +27,8 @@ export function APISimulator() {
   const [oauthScopes, setOauthScopes] = useState('read,write')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'warning'} | null>(null)
+  const [showRecovery, setShowRecovery] = useState(false)
+  const [lastSelectedRuleSet, setLastSelectedRuleSet] = useState('')
 
   // Periodically refresh rule sets to prevent stale data
   useEffect(() => {
@@ -39,6 +42,30 @@ export function APISimulator() {
     
     return () => clearInterval(intervalId)
   }, [])
+
+  // Update selected rule set when rule sets change
+  useEffect(() => {
+    // If no rule set is selected yet but we have rule sets, select the first one
+    if (!selectedRuleSet && ruleSets.length > 0) {
+      setSelectedRuleSet(ruleSets[0].id)
+    }
+    
+    // If we have no rule sets but had a previously selected one, show recovery
+    if (ruleSets.length === 0 && lastSelectedRuleSet) {
+      setShowRecovery(true)
+      setNotification({
+        message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
+        type: 'warning'
+      })
+    } else {
+      setShowRecovery(false)
+    }
+    
+    // Update last selected rule set if we have a selection
+    if (selectedRuleSet) {
+      setLastSelectedRuleSet(selectedRuleSet)
+    }
+  }, [ruleSets, selectedRuleSet])
 
   const refreshRuleSets = async (showFeedback = true) => {
     if (showFeedback) {
@@ -55,9 +82,24 @@ export function APISimulator() {
       // Only update if we get rule sets back - never replace with empty array
       if (freshRuleSets.length > 0) {
         setRuleSets(freshRuleSets)
-      }
-      
-      if (showFeedback) {
+        
+        // If we previously had no rule sets, update notification
+        if (ruleSets.length === 0) {
+          setNotification({
+            message: `✅ Rule sets loaded successfully (${freshRuleSets.length} found)`,
+            type: 'success'
+          })
+          setTimeout(() => setNotification(null), 3000)
+        }
+      } else if (freshRuleSets.length === 0 && ruleSets.length > 0) {
+        // If we had rule sets but now got none, this may be a cache/session issue
+        setShowRecovery(true)
+        setNotification({
+          message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
+          type: 'warning'
+        })
+        // Don't clear this notification
+      } else if (showFeedback) {
         setNotification({
           message: `✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`,
           type: 'success'
@@ -76,6 +118,11 @@ export function APISimulator() {
         setIsRefreshing(false)
       }
     }
+  }
+
+  const handleRecoveryComplete = () => {
+    refreshRuleSets(true)
+    setShowRecovery(false)
   }
 
   const handleSimulate = async () => {
@@ -197,6 +244,11 @@ export function APISimulator() {
         }`}>
           <p className="text-sm">{notification.message}</p>
         </div>
+      )}
+
+      {/* Recovery option when rule sets disappear */}
+      {showRecovery && (
+        <RuleSetRecovery onComplete={handleRecoveryComplete} />
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

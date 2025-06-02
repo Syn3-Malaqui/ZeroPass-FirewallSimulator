@@ -160,16 +160,49 @@ function invalidateCache(pattern?: string): void {
     const keys = Array.from(cache.keys())
     keys.forEach(key => {
       if (key.includes(pattern)) {
-        cache.delete(key)
+        // Special handling for rules - don't clear if it's our only data source
+        if (key.includes('rules') && pattern.includes('rules')) {
+          // Get the cached rules
+          const cachedRules = cache.get(key)?.data
+          
+          // Only clear if we're sure it's not our only source of rule sets
+          if (!cachedRules || !Array.isArray(cachedRules) || cachedRules.length === 0) {
+            console.log('Safe to clear empty rule cache')
+            cache.delete(key)
+          } else {
+            console.log(`Preserving ${cachedRules.length} cached rules for safety`)
+            // Instead of deleting, just mark as needing refresh
+            cache.set(key, {
+              data: cachedRules,
+              timestamp: Date.now() - CACHE_DURATION + 5000 // Mark as almost expired
+            })
+          }
+        } else {
+          // For non-rule caches, clear normally
+          cache.delete(key)
+        }
       }
     })
   } else {
+    // Safer full cache clear - preserve rule sets
+    const ruleSetCacheKey = getCacheKey('rules')
+    const cachedRuleSets = cache.get(ruleSetCacheKey)
+    
     // Clear all cache
     cache.clear()
+    
+    // Restore rule sets if they existed
+    if (cachedRuleSets && Array.isArray(cachedRuleSets.data) && cachedRuleSets.data.length > 0) {
+      console.log(`Preserving ${cachedRuleSets.data.length} cached rule sets during cache clear`)
+      cache.set(ruleSetCacheKey, {
+        data: cachedRuleSets.data,
+        timestamp: Date.now() - CACHE_DURATION + 5000 // Mark as almost expired
+      })
+    }
   }
   
-  // Also clear session storage
-  clearSessionData()
+  // More selective session storage clearing
+  clearSessionData(pattern)
 }
 
 // Session-specific storage to prevent cross-session data leaks
@@ -231,19 +264,93 @@ function clearSessionData(key?: string): void {
   const userId = getCurrentUserId()
   
   if (key) {
-    // Clear specific key
-    const sessionKey = getSessionStorageKey(key)
-    sessionStorage.removeItem(sessionKey)
+    // If it's a pattern, handle more carefully
+    if (key.includes('*')) {
+      const pattern = key.replace('*', '')
+      const keysToRemove: string[] = []
+      
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const storageKey = sessionStorage.key(i)
+        if (storageKey && storageKey.startsWith(`${SESSION_STORAGE_PREFIX}${userId}_`) && storageKey.includes(pattern)) {
+          // Special handling for rules - don't clear if they might be needed
+          if (storageKey.includes('rules')) {
+            try {
+              const storedData = sessionStorage.getItem(storageKey)
+              if (storedData) {
+                const parsed = JSON.parse(storedData)
+                if (!parsed.data || !Array.isArray(parsed.data) || parsed.data.length === 0) {
+                  // Only remove if empty
+                  keysToRemove.push(storageKey)
+                }
+              }
+            } catch (error) {
+              // If we can't parse it, leave it alone
+              console.warn('Could not parse session data for rules:', error)
+            }
+          } else {
+            // For non-rule keys, remove normally
+            keysToRemove.push(storageKey)
+          }
+        }
+      }
+      
+      keysToRemove.forEach(k => sessionStorage.removeItem(k))
+    } else {
+      // Clear specific key (but be careful with rules)
+      const sessionKey = getSessionStorageKey(key)
+      
+      if (sessionKey.includes('rules')) {
+        try {
+          const storedData = sessionStorage.getItem(sessionKey)
+          if (storedData) {
+            const parsed = JSON.parse(storedData)
+            if (!parsed.data || !Array.isArray(parsed.data) || parsed.data.length === 0) {
+              // Only remove if empty
+              sessionStorage.removeItem(sessionKey)
+            }
+          }
+        } catch (error) {
+          // If we can't parse it, leave it alone
+          console.warn('Could not parse session data for rules:', error)
+        }
+      } else {
+        // For non-rule keys, remove normally
+        sessionStorage.removeItem(sessionKey)
+      }
+    }
   } else {
-    // Clear all session data for current user
+    // Safer approach when clearing all session data
     const keysToRemove: string[] = []
+    const keysToKeep: string[] = []
+    
+    // First pass - identify what to keep and what to remove
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i)
       if (key && key.startsWith(`${SESSION_STORAGE_PREFIX}${userId}_`)) {
+        if (key.includes('rules')) {
+          try {
+            const storedData = sessionStorage.getItem(key)
+            if (storedData) {
+              const parsed = JSON.parse(storedData)
+              if (parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+                // Keep rule data that has content
+                keysToKeep.push(key)
+                continue
+              }
+            }
+          } catch (error) {
+            // If we can't parse it, err on the side of caution and keep it
+            keysToKeep.push(key)
+            continue
+          }
+        }
         keysToRemove.push(key)
       }
     }
+    
+    // Remove the keys that are safe to remove
     keysToRemove.forEach(key => sessionStorage.removeItem(key))
+    console.log(`Cleared ${keysToRemove.length} session items, preserved ${keysToKeep.length} items`)
   }
 }
 
@@ -321,7 +428,11 @@ export const api = {
   async getRuleSets(): Promise<FirewallRuleSet[]> {
     const cacheKey = getCacheKey('rules')
     const cached = getFromCache(cacheKey)
-    if (cached) return cached
+    
+    // Return cached data if fresh (but NOT if it's an empty array - that might be an error)
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached
+    }
 
     try {
       console.log(`Fetching rule sets from ${getBackendUrl()}/rules`)
@@ -336,16 +447,64 @@ export const api = {
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`API Error (${response.status}):`, errorText)
+        
+        // If we get an error but have cached data, use the cached data as fallback
+        if (cached && Array.isArray(cached)) {
+          console.log('Using cached rule sets as fallback due to API error')
+          return cached
+        }
+        
         throw new APIError(`Failed to load rule sets: ${response.statusText}`, response.status)
       }
 
       const ruleSets = await response.json()
       console.log(`Successfully fetched ${ruleSets.length} rule sets`)
       
+      // If we received an empty array but have cached data with rules, something might be wrong
+      if (ruleSets.length === 0 && cached && Array.isArray(cached) && cached.length > 0) {
+        console.warn('Received empty rule sets from API but have cached rules - potential session issue')
+        
+        // Try one more time with a cache-busting query parameter
+        try {
+          console.log('Attempting recovery fetch with cache-busting...')
+          const recoveryResponse = await fetch(`${getBackendUrl()}/rules?_cb=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'X-User-ID': getCurrentUserId(),
+              'Cache-Control': 'no-cache, no-store'
+            }
+          })
+          
+          if (recoveryResponse.ok) {
+            const recoveredRuleSets = await recoveryResponse.json()
+            if (recoveredRuleSets.length > 0) {
+              console.log(`Recovery successful: found ${recoveredRuleSets.length} rule sets`)
+              setCache(cacheKey, recoveredRuleSets)
+              return recoveredRuleSets
+            }
+          }
+        } catch (recoveryError) {
+          console.error('Recovery attempt failed:', recoveryError)
+        }
+        
+        // If recovery failed but we have cached data, use it
+        console.log('Using cached rule sets after failed recovery')
+        return cached
+      }
+      
+      // Normal case - store and return the fetched rule sets
       setCache(cacheKey, ruleSets)
       return ruleSets
     } catch (error) {
       console.error('Rule sets fetch error:', error)
+      
+      // Last resort fallback - use cached data even if it's an empty array
+      if (cached) {
+        console.log('Using cached rule sets as fallback after error')
+        return cached
+      }
+      
       throw error instanceof APIError 
         ? error 
         : new APIError(`Failed to load rule sets: ${error instanceof Error ? error.message : 'Unknown error'}`)

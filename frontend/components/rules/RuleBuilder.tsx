@@ -9,6 +9,7 @@ import { useAppStore, useRuleSets, type FirewallRuleSet } from '@/lib/store'
 import { api, handleAPIError } from '@/lib/api'
 import { RuleForm } from './RuleForm'
 import { RuleList } from './RuleList'
+import { RuleSetRecovery } from '../RuleSetRecovery'
 
 export function RuleBuilder() {
   const ruleSets = useRuleSets()
@@ -25,10 +26,16 @@ export function RuleBuilder() {
   
   const [showForm, setShowForm] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [showRecovery, setShowRecovery] = useState(false)
 
   useEffect(() => {
     loadRuleSets()
   }, [])
+
+  useEffect(() => {
+    // Show recovery component when user has no rule sets
+    setShowRecovery(ruleSets.length === 0)
+  }, [ruleSets])
 
   const loadRuleSets = async () => {
     try {
@@ -110,6 +117,11 @@ export function RuleBuilder() {
     setEditMode(false)
   }
 
+  const handleRecoveryComplete = () => {
+    loadRuleSets() // Reload rule sets after recovery
+    setShowRecovery(false)
+  }
+
   return (
     <div className="space-y-5 animate-slideUp">
       {/* Header */}
@@ -129,6 +141,11 @@ export function RuleBuilder() {
           </button>
         )}
       </div>
+
+      {/* Recovery option */}
+      {showRecovery && !showForm && (
+        <RuleSetRecovery onComplete={handleRecoveryComplete} />
+      )}
 
       {/* Form or List */}
       {showForm ? (
