@@ -355,10 +355,33 @@ function clearSessionData(key?: string): void {
 }
 
 export const api = {
-  // Clear user cache manually
-  clearCache: () => {
-    clearUserCache()
-    invalidateCache()
+  // Clear user cache manually with more thorough option
+  clearCache: (thorough = false) => {
+    if (thorough) {
+      // Save current rule sets before clearing
+      const rules = userCache.get(getCurrentUserId())?.get('rules')?.data
+      
+      // Clear everything
+      clearUserCache()
+      invalidateCache()
+      
+      // If we have rule sets, restore them with a shorter expiration
+      if (rules && Array.isArray(rules) && rules.length > 0) {
+        console.log(`Preserving ${rules.length} rule sets during thorough cache clear`)
+        const cache = getUserCache()
+        cache.set('rules', {
+          data: rules,
+          timestamp: Date.now() - CACHE_DURATION + 2000 // Almost expired
+        })
+      }
+      
+      // Clear any potential browser-level caching using cache-busting in future requests
+      cachedBackendUrl = null // Force re-evaluation of backend URL
+    } else {
+      // Normal clear
+      clearUserCache()
+      invalidateCache()
+    }
   },
 
   // Clear specific cache patterns
@@ -425,22 +448,25 @@ export const api = {
   },
 
   // Rule Set Management - with improved caching and error handling
-  async getRuleSets(): Promise<FirewallRuleSet[]> {
+  async getRuleSets(forceFresh = false): Promise<FirewallRuleSet[]> {
     const cacheKey = getCacheKey('rules')
     const cached = getFromCache(cacheKey)
     
-    // Return cached data if fresh (but NOT if it's an empty array - that might be an error)
-    if (cached && Array.isArray(cached) && cached.length > 0) {
+    // Return cached data if fresh and not forcing fresh
+    if (!forceFresh && cached && Array.isArray(cached) && cached.length > 0) {
       return cached
     }
 
     try {
       console.log(`Fetching rule sets from ${getBackendUrl()}/rules`)
-      const response = await fetch(`${getBackendUrl()}/rules`, {
+      const cacheBuster = forceFresh ? `?_cb=${Date.now()}` : ''
+      
+      const response = await fetch(`${getBackendUrl()}/rules${cacheBuster}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'X-User-ID': getCurrentUserId()
+          'X-User-ID': getCurrentUserId(),
+          'Cache-Control': forceFresh ? 'no-cache, no-store, must-revalidate' : 'max-age=30'
         }
       })
 
@@ -464,32 +490,42 @@ export const api = {
       if (ruleSets.length === 0 && cached && Array.isArray(cached) && cached.length > 0) {
         console.warn('Received empty rule sets from API but have cached rules - potential session issue')
         
-        // Try one more time with a cache-busting query parameter
+        // If not already forcing fresh, try one more time with cache-busting
+        if (!forceFresh) {
+          console.log('Attempting recovery fetch with aggressive cache-busting...')
+          return this.getRuleSets(true) // Call recursively with forceFresh=true
+        }
+        
+        // If we're already forcing fresh and still got empty, try to ensure a rule set exists
+        console.log('Attempting to create a fallback rule set...')
         try {
-          console.log('Attempting recovery fetch with cache-busting...')
-          const recoveryResponse = await fetch(`${getBackendUrl()}/rules?_cb=${Date.now()}`, {
+          const newRuleSetId = await this.ensureRuleSetExists()
+          console.log(`Created fallback rule set: ${newRuleSetId}`)
+          
+          // Try once more with the new rule set
+          const finalResponse = await fetch(`${getBackendUrl()}/rules?_final=true&_cb=${Date.now()}`, {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
               'X-User-ID': getCurrentUserId(),
-              'Cache-Control': 'no-cache, no-store'
+              'Cache-Control': 'no-cache, no-store, must-revalidate'
             }
           })
           
-          if (recoveryResponse.ok) {
-            const recoveredRuleSets = await recoveryResponse.json()
-            if (recoveredRuleSets.length > 0) {
-              console.log(`Recovery successful: found ${recoveredRuleSets.length} rule sets`)
-              setCache(cacheKey, recoveredRuleSets)
-              return recoveredRuleSets
+          if (finalResponse.ok) {
+            const finalRuleSets = await finalResponse.json()
+            if (finalRuleSets.length > 0) {
+              console.log(`Final recovery successful: found ${finalRuleSets.length} rule sets`)
+              setCache(cacheKey, finalRuleSets)
+              return finalRuleSets
             }
           }
         } catch (recoveryError) {
-          console.error('Recovery attempt failed:', recoveryError)
+          console.error('Final recovery attempt failed:', recoveryError)
         }
         
-        // If recovery failed but we have cached data, use it
-        console.log('Using cached rule sets after failed recovery')
+        // If all recovery failed but we have cached data, use it
+        console.log('Using cached rule sets after all recovery attempts failed')
         return cached
       }
       

@@ -73,40 +73,82 @@ export function APISimulator() {
     }
     
     try {
-      // Clear cache but don't risk deleting custom rule sets
-      api.clearCachePattern('templates')
-      api.clearCachePattern('scenarios')
+      // Force a complete refresh by clearing more aggressively
+      // But first check if we need to save our current rule sets as backup
+      const currentRuleSets = [...ruleSets]
       
-      const freshRuleSets = await api.getRuleSets()
+      // Clear rule cache but be careful to keep a backup
+      api.clearCache(true) // Use thorough cache clearing to force a complete refresh
       
-      // Only update if we get rule sets back - never replace with empty array
+      console.log('Fetching fresh rule sets...')
+      const freshRuleSets = await api.getRuleSets(true) // Force fresh data
+      
+      // Only update if we get rule sets back
       if (freshRuleSets.length > 0) {
+        console.log(`Successfully fetched ${freshRuleSets.length} fresh rule sets`)
         setRuleSets(freshRuleSets)
         
-        // If we previously had no rule sets, update notification
+        // If previously had no rule sets, update notification
         if (ruleSets.length === 0) {
           setNotification({
             message: `✅ Rule sets loaded successfully (${freshRuleSets.length} found)`,
             type: 'success'
           })
           setTimeout(() => setNotification(null), 3000)
+        } else {
+          // Success notification
+          setNotification({
+            message: `✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`,
+            type: 'success'
+          })
+          setTimeout(() => setNotification(null), 3000)
         }
-      } else if (freshRuleSets.length === 0 && ruleSets.length > 0) {
-        // If we had rule sets but now got none, this may be a cache/session issue
-        setShowRecovery(true)
+      } else if (freshRuleSets.length === 0 && currentRuleSets.length > 0) {
+        // We had rules but got none back - this is probably a backend issue
+        
+        console.log('Received empty rule sets, trying to force backend re-sync...')
+        
+        // Try to force the backend to create a new rule set
+        try {
+          const newRuleSetId = await api.ensureRuleSetExists()
+          console.log('Created fallback rule set:', newRuleSetId)
+          
+          // Now try fetching rule sets again
+          const recoveredRuleSets = await api.getRuleSets()
+          
+          if (recoveredRuleSets.length > 0) {
+            setRuleSets(recoveredRuleSets)
+            setNotification({
+              message: `✅ Created a new rule set since previous ones were unavailable`,
+              type: 'success'
+            })
+            setTimeout(() => setNotification(null), 3000)
+          } else {
+            // Show recovery option
+            setShowRecovery(true)
+            setNotification({
+              message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
+              type: 'warning'
+            })
+          }
+        } catch (ensureError) {
+          console.error('Failed to ensure rule set exists:', ensureError)
+          setShowRecovery(true)
+          setNotification({
+            message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
+            type: 'warning'
+          })
+        }
+      } else if (freshRuleSets.length === 0) {
+        // Never had any rule sets - just show normal message
         setNotification({
-          message: '⚠️ Your rule sets appear to have disappeared. You can try to recover them.',
+          message: `ℹ️ No rule sets found. Create rule sets in the Rule Builder tab first.`,
           type: 'warning'
         })
-        // Don't clear this notification
-      } else if (showFeedback) {
-        setNotification({
-          message: `✅ Rule sets refreshed successfully (${freshRuleSets.length} found)`,
-          type: 'success'
-        })
-        setTimeout(() => setNotification(null), 3000)
+        setTimeout(() => setNotification(null), 5000)
       }
     } catch (error) {
+      console.error('Error refreshing rule sets:', error)
       if (showFeedback) {
         setNotification({
           message: `Failed to refresh rule sets: ${handleAPIError(error)}`,
